@@ -1,0 +1,5 @@
+[supervisord]
+
+[program:ACCESS_GOOGLE]
+command=/usr/bin/autossh -M 0 -N -R *:5000:www.google.com:80 -i /etc/agent/private-key.pem -o "ServerAliveInterval=30" -o "ServerAliveCountMax=3" -o "StrictHostKeyChecking=no" ssh-user@<server>
+user=ssh-user
