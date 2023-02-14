@@ -35,6 +35,8 @@ Same is illustrated with a sequence diagram
 
 
 ## Setting up the Agent
+This is a docker image which can run on any OS supporting docker containers.
+
 1. Clone this repo
 
 2. Generate Certificate:
