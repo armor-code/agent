@@ -48,7 +48,7 @@ ssh-keygen -y -f private-key.pem > public-key.pem
 
 3. Share public-key.pem with Armorcode support.  
   
-4. Share list of on-prem servers (DNS or IP) and their ports which will be accessed by Armorcode via the Agent  
+4. Share list of on-prem servers (DNS/hostname) and their ports which will be accessed by Armorcode via the Agent  
   
 5. Get supervisord.conf from Armorcode support  
   
