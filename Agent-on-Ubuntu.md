@@ -37,7 +37,7 @@ Execute below commands
 
 **Notes:**
 
- 1. A separate service file is needed for each service which should be reachable from ArmorcodeList item
+ 1. A separate service file is needed for each service which should be reachable from Armorcode
  2. Above instructions can be adjusted for any other Linux based OS.
 
 
