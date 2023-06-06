@@ -1,9 +1,9 @@
 [supervisord]
 
 [program:ACCESS_JIRA]
-command=/usr/bin/autossh -M 0 -N -R *:5000:jira.acme.com:443 -i /etc/agent/private-key.pem -o "ServerAliveInterval=30" -o "ServerAliveCountMax=3" -o "StrictHostKeyChecking=no" ssh-user@<server>
+command=/usr/bin/autossh -M 0 -N -R *:5000:jira.acme.com:443 -i /etc/armorcode/private-key.pem -o "ServerAliveInterval=30" -o "ServerAliveCountMax=3" -o "StrictHostKeyChecking=no" ssh-user@<server>
 user=ssh-user
 
 [program:ACCESS_SONARQUBE]
-command=/usr/bin/autossh -M 0 -N -R *:5001:sonar.acme.com:443 -i /etc/agent/private-key.pem -o "ServerAliveInterval=30" -o "ServerAliveCountMax=3" -o "StrictHostKeyChecking=no" ssh-user@<server>
+command=/usr/bin/autossh -M 0 -N -R *:5001:sonar.acme.com:443 -i /etc/armorcode/private-key.pem -o "ServerAliveInterval=30" -o "ServerAliveCountMax=3" -o "StrictHostKeyChecking=no" ssh-user@<server>
 user=ssh-user
