@@ -40,7 +40,11 @@ This is a docker image which can run on any OS supporting docker containers.
 1. Generate Certificate:
 ```
 openssl genrsa -out private-key.pem 2048  
-chmod 400 private-key.pem  
+```
+```
+chmod 400 private-key.pem   
+```
+``` 
 ssh-keygen -y -f private-key.pem > public-key.pem  
 ```
 
@@ -50,11 +54,32 @@ ssh-keygen -y -f private-key.pem > public-key.pem
 
 4. Get supervisord.conf from Armorcode support
 
-5. Clone this repo
+5. Clone this repo:
+```
+git clone https://github.com/armor-code/agent.git
+```
   
-6. Copy below two files inside cloned repo
+6. Copy below two files inside cloned repo folder
     - supervisord.conf
-    - private-key.pem
-  
-7. Call docker compose up
-    - Also see run.sh to clean-up previous docker image before starting new one
+    - private-key.pem  
+
+7. Optional step to check all things are in order. Run command: 
+```
+bash pre-launch-check.sh
+```
+
+8. Run below command (Also see run.sh to clean-up previous docker image before starting new one)
+```
+docker compose up
+```
+
+
+## Issues and their solution
+
+ 1. Unable to connect with armorcode server on port 22 from docker container\
+    
+    **Solution:** Work with your IT team to allow outgoing connection to armorcode server on port 22
+
+ 2. Error log: exit status 1; not expected\
+
+    **Solution:** Check you have copied private-key.pem file in the folder from where you are running "docker compose up"
