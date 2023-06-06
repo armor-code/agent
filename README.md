@@ -65,7 +65,7 @@ git clone https://github.com/armor-code/agent.git
 
 7. Optional step to check all things are in order. Run command: 
 ```
-bash pre-launch-check.sh
+bash pre-launch-check.sh <server>
 ```
 
 8. Run below command (Also see run.sh to clean-up previous docker image before starting new one)
@@ -80,6 +80,6 @@ docker compose up
     
     **Solution:** Work with your IT team to allow outgoing connection to armorcode server on port 22
 
- 2. Error log: exit status 1; not expected\
+ 2. Error log: exit status 1; not expected
 
     **Solution:** Check you have copied private-key.pem file in the folder from where you are running "docker compose up"
