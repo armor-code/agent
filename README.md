@@ -31,6 +31,8 @@ Same is illustrated with a sequence diagram
   <br>
 </h1>
 
+## Additional notes if outbound port 22 is blocked
+Armorcode provides SSH Server hosted on port 443 as well in such case. Everything mentioned above remains same except replace port 22 with port 443.
  
 
 
