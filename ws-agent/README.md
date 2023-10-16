@@ -27,15 +27,19 @@ Lets assume, customer is running JIRA service in internal network and Armorcode 
 Same is illustrated with a sequence diagram
 ```mermaid
 sequenceDiagram
-    AC-WS-Agent->>+AC-Server: connect on port 443 with Tunnel-1 configuration
-    AC-Server->>+AC-Server: start listening on port 5000 for Tunnel-1
-    AC-WS-Agent->>+AC-WS-Agent: Virtual point for Tunnel-1. All traffic coming goes to Jira:443
-    AC-Code->>+AC-Server: Sends HTTPS request on port 5000
-    AC-Server->>+AC-WS-Agent: Forward request over Tunnel-1
-    AC-WS-Agent->>+Jira: Send request to Jira
-    Jira->>+AC-WS-Agent: HTTPS response
-    AC-WS-Agent->>+AC-Server: HTTPS response
-    AC-Server->>+AC-Code:HTTPS response
+   participant AC-Code
+   participant AC-Server
+   participant AC-WS-Agent
+   participant Jira
+   AC-WS-Agent->>+AC-Server: connect on port 443 with Tunnel-1 configuration
+   AC-Server->>+AC-Server: start listening on port 5000 for Tunnel-1
+   AC-WS-Agent->>+AC-WS-Agent: Virtual point for Tunnel-1. All traffic coming goes to Jira:443
+   AC-Code->>+AC-Server: Sends HTTPS request on port 5000
+   AC-Server->>+AC-WS-Agent: Forward request over Tunnel-1
+   AC-WS-Agent->>+Jira: Send request to Jira
+   Jira->>+AC-WS-Agent: HTTPS response
+   AC-WS-Agent->>+AC-Server: HTTPS response
+   AC-Server->>+AC-Code:HTTPS response
 ```
 
 ## Setting up the Agent
