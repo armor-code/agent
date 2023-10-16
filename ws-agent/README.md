@@ -2,9 +2,9 @@
 
 a) Authentication between WS-Agent and Armorcode WS-Server is done using token + port combination.
 
-c) Connectivity from the agent to internal services in customer's datacenter is governed by the docker containers launched as reverse tunnel clients. There is no extra security configuration required. Customers may want to restrict internal services which Agent can access via firewall as per their security/compliance policy.
+b) Connectivity from the agent to internal services in customer's datacenter is governed by the docker containers launched as reverse tunnel clients. There is no extra security configuration required. Customers may want to restrict internal services which Agent can access via firewall as per their security/compliance policy.
 
-d) The docker image can be hosted in a VM or K8 cluster as per convenience. The only expectation is that Agent is able to reach armorcode service on port 443 to establish websocket connection and Agent should be able to reach the tunnel service (e.g. Jira).
+c) The docker image can be hosted in a VM or K8 cluster as per convenience. The only expectation is that Agent is able to reach armorcode service on port 443 to establish websocket connection and Agent should be able to reach the tunnel service (e.g. Jira).
 
 
 ## How it works
@@ -12,13 +12,13 @@ Armorcode WS-Agent uses the concept of Reverse WebSocket tunneling to establish 
 
 This is a similar to reverse SSH tunnel concept. Below is a short explanation of the same.
 
-Lets assume, customer is running JIRA service in internal network and Armorcode has to connect to this JIRA service via Armorcode WS-Agent. It requires following steps
+Let's assume, customer is running JIRA service in internal network and Armorcode has to connect to this JIRA service via Armorcode WS-Agent. It requires following steps
 
-1) Customer starts the WS-Agent in their on-prem enviornment from where JIRA service is reachable.
+1) Customer starts the WS-Agent in their on-prem environment from where JIRA service is reachable.
 
 2) WS-Agent creates a TCP connection to port 443 of Armorcode WS-Server (Websocket connection).
 
-3) Due to reverse tunnel configuration, port 5000 opens-up for listening on the Armorcode WS-Server (internal network only) and any traffic sent to this port will reach the JIRA service in customer enviornment.
+3) Due to reverse tunnel configuration, port 5000 opens-up for listening on the Armorcode WS-Server (internal network only) and any traffic sent to this port will reach the JIRA service in customer environment.
 
 4) Armorcode platform now initiates connection to customer's JIRA service by making a connection to this port 5000. This connection is tunneled via the Armorcode WS-Server via WS-Agent to customer's JIRA.
 
