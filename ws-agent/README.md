@@ -43,7 +43,7 @@ sequenceDiagram
 ## Setting up the Agent
 This is a docker image which can run on any OS supporting docker containers.
 
-1. docker run -d --name=armorcode-ws-agent -e TUNNEL_PORT={{tunnel-port-on-server}} -e CLIENT_SIDE_DOMAIN={{client-side-domain}} -e CLIENT_SIDE_PORT={{client-side-port}} -e SERVER_IP_DOMAIN={{server-IP/domain}} -e CLIENT_UUID={{client-uuid}} public.ecr.aws/g3l8r8c1/armorcode-ws-agent:latest
+1. docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT={{tunnel-port-on-server}} -e CLIENT_SIDE_DOMAIN={{client-side-domain}} -e CLIENT_SIDE_PORT={{client-side-port}} -e SERVER_IP_DOMAIN={{server-IP/domain}} -e CLIENT_UUID={{client-uuid}} public.ecr.aws/g3l8r8c1/armorcode-ws-agent:latest
 
 
 ## Issues and their solution
