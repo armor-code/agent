@@ -59,7 +59,9 @@ export clientSideDomain=...
 export clientSidePort=...
 ```
 3. Run reverse tunnel client:
-```docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT=$tunnelPortOnServer -e CLIENT_SIDE_DOMAIN=$clientSideDomain -e CLIENT_SIDE_PORT=$clientSidePort -e SERVER_IP_DOMAIN=$serverIpDomain -e CLIENT_UUID=$clientUuid public.ecr.aws/armor-code/armorcode-ws-agent:latest```
+```
+docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT=$tunnelPortOnServer -e CLIENT_SIDE_DOMAIN=$clientSideDomain -e CLIENT_SIDE_PORT=$clientSidePort -e SERVER_IP_DOMAIN=$serverIpDomain -e CLIENT_UUID=$clientUuid public.ecr.aws/armor-code/armorcode-ws-agent:latest
+```
 
 ## Issues and their solution
 
