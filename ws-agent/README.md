@@ -47,10 +47,19 @@ This is a docker image which can run on any OS supporting docker containers.
 ```
 curl -k https://{{server-IP/domain}}
 ```
-2. Run reverse tunnel client:
+2. Export the following variables:
 ```
-docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT={{tunnel-port-on-server}} -e CLIENT_SIDE_DOMAIN={{client-side-domain}} -e CLIENT_SIDE_PORT={{client-side-port}} -e SERVER_IP_DOMAIN={{server-IP/domain}} -e CLIENT_UUID={{client-uuid}} public.ecr.aws/armor-code/armorcode-ws-agent:latest
+#provided by Armorcode team
+export tunnelPortOnServer=...
+export serverIpDomain=...
+export clientUuid=...
+
+#provided by customer
+export clientSideDomain=...
+export clientSidePort=...
 ```
+3. Run reverse tunnel client:
+```docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT=$tunnelPortOnServer -e CLIENT_SIDE_DOMAIN=$clientSideDomain -e CLIENT_SIDE_PORT=$clientSidePort -e SERVER_IP_DOMAIN=$serverIpDomain -e CLIENT_UUID=$clientUuid public.ecr.aws/armor-code/armorcode-ws-agent:latest```
 
 ## Issues and their solution
 
