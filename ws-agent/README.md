@@ -60,7 +60,7 @@ export clientSidePort=...
 ```
 3. Run reverse tunnel client:
 ```
-docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT=$tunnelPortOnServer -e CLIENT_SIDE_DOMAIN=$clientSideDomain -e CLIENT_SIDE_PORT=$clientSidePort -e SERVER_IP_DOMAIN=$serverIpDomain -e CLIENT_UUID=$clientUuid public.ecr.aws/armor-code/armorcode-ws-agent:latest
+docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT=$tunnelPortOnServer -e CLIENT_SIDE_DOMAIN=$clientSideDomain -e CLIENT_SIDE_PORT=$clientSidePort -e SERVER_IP_DOMAIN=$serverIpDomain -e CLIENT_UUID=$clientUuid armorcode/armorcode-ws-agent:latest
 ```
 
 ## Issues and their solution
@@ -69,10 +69,6 @@ docker run -d --name=armorcode-ws-agent --restart always -e TUNNEL_PORT=$tunnelP
 
    **Solution:** Work with your IT team to allow outgoing connection to armorcode server on port 443
 
-2. Unable to pull docker image
-
-   **Solution:** Run ```docker logout public.ecr.aws``` and try again.
-
-3. Docker container exiting
+2. Docker container exiting
 
    **Solution:** Check you have supplied all the variables correctly for TUNNEL_PORT, SERVER_IP_DOMAIN and CLIENT_UUID. Additionally, ensure that you are not using the same TUNNEL_PORT again for a different service.
