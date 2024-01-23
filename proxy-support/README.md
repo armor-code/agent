@@ -1,0 +1,1 @@
+This script supports routing of connection from Agent to Service via a web-proxy. This is required when Service is not directly reachable from the Agent.
