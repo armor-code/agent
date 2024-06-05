@@ -88,3 +88,15 @@ docker compose up
  2. Error log: exit status 1; not expected
 
     **Solution:** Check you have copied private-key.pem file in the folder from where you are running "docker compose up"
+
+ 3. “No such config file : /etc/supervisord/supervisord.conf” error generated when using docker-compose.yml on RHEL 8/9 with PODMAN \
+    **Solution:** This error is caused due to binding volume failure. To solve it, append line no. 6 of docker-compose.yml with “:Z” flag then execute the “docker-compose up” command.
+    File will look like :
+    ```
+    version: “3.9"
+    services:
+        armorcode-tunnel-1:
+        build: .
+        volumes:
+            - .:/etc/armorcode:Z
+    
