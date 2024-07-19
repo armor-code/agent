@@ -2,5 +2,6 @@ version: "3.9"
 services:
   armorcode-tunnel-1:
     build: .
+    restart: always
     volumes:
       - .:/etc/armorcode
