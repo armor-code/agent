@@ -85,13 +85,16 @@ docker run --restart unless-stopped -d <image-name>
 
 ## Issues and their solution
 
- 1. Unable to connect with armorcode server on port 22 from docker container\
+ 1. Unable to connect with armorcode server on port 22 from docker container
     
     **Solution:** Work with your IT team to allow outgoing connection to armorcode server on port 22
 
  2. Error log: exit status 1; not expected
 
-    **Solution:** Check you have copied private-key.pem file in the folder from where you are running "docker compose up"
+    **Solution:** Check you have copied private-key.pem file in the folder from where you are running "docker compose up" and autossh is able to read the file.
+    
+    You may have to run docker with sudo privileges if you are mounting the folder which has private-key due to user incompatability between host and container.
+
 
  3. “No such config file : /etc/supervisord/supervisord.conf” error generated when using docker-compose.yml on RHEL 8/9 with PODMAN \
     **Solution:** This error is caused due to binding volume failure. To solve it, append line no. 7 of docker-compose.yml with “:Z” flag then execute the “docker-compose up” command.
