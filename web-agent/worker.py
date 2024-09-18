@@ -14,7 +14,7 @@ server_url = None
 
 letters = string.ascii_letters
 rand_string = ''.join(random.choice(letters) for _ in range(10))
-output_file = "/data/large_output_file.txt"
+output_file = "/data/large_output_file.txt" + rand_string
 
 max_file_size = 1024*10
 
@@ -39,11 +39,12 @@ def main():
         try:
             # Get the next task
             print("Requesting task...")
-            get_task_response = requests.get(f"{server_url}/getTask", headers=headers, timeout=25)
+            get_task_response = requests.get(f"{server_url}/api/httpTeleport/getTask", headers=headers, timeout=25)
             
             if get_task_response.status_code == 200:
-                task = get_task_response.json()
-                _validate_task(task)
+                task = get_task_response.json()['data']
+                if task is None:
+                    print(f"Received ")
                 print(f"Received task: {task['taskId']}")
                 
                 # Process the task
@@ -54,7 +55,7 @@ def main():
                     f"{server_url}/updateTask",
                     params={'taskId': task['taskId']},
                     json={'result': result},
-                    timeout=10
+                    timeout=30
                 )
 
                 if update_task_response.status_code == 200:
@@ -71,7 +72,7 @@ def main():
             print(f"Error: {e}")
             time.sleep(5)
         finally:
-            ##remove the output generate file
+            ##remove the output generated file
             os.remove(output_file)
             return
 
@@ -127,17 +128,24 @@ def process_task(task):
             upload_s3(s3_upload_url)
 
         # Collect response details
-        result = {
-            'status_code': response.status_code,
-            'headers': dict(response.headers),
-            'body': s3_upload_url if is_s3_upload else response.json()
-        }
+        _update_task_with_response(task, response, s3_upload_url)
+
         print(f"Task {task['taskId']} processed successfully.")
-        return result
+        return task
 
     except requests.exceptions.RequestException as e:
         print(f"Error processing task {task['taskId']}: {e}")
         return {'error': str(e)}
+
+
+def _update_task_with_response(task, response, s3_upload_url):
+    task['responseHeaders'] = dict(response.headers)
+    task['statusCode'] = response.status_code
+    if s3_upload_url is None:
+        task['output'] = response.json()
+    else:
+        task['s3Url'] = s3_upload_url
+
 
 def upload_s3(preSignedUrl):
     try:
@@ -154,7 +162,7 @@ def get_s3_upload_url(taskId):
     params = {'fileName': taskId}
     get_s3_url = requests.get(f"{server_url}/api/httpTeleport/get-signed-url", params=params,
                                      headers=_get_headers(), timeout=25)
-    return get_s3_url.json()
+    return get_s3_url.json()['data']
 
 
 
