@@ -52,7 +52,7 @@ def main():
                 
                 # Update the task
                 update_task_response = requests.post(
-                    f"{server_url}/updateTask",
+                    f"{server_url}/api/httpTeleport/putResult",
                     params={'taskId': task['taskId']},
                     json={'result': result},
                     timeout=30
@@ -125,6 +125,8 @@ def process_task(task):
         is_s3_upload = file_size > max_file_size
         if is_s3_upload:
             s3_upload_url = get_s3_upload_url(taskId)
+            if s3_upload_url is None:
+                raise Exception("")
             upload_s3(s3_upload_url)
 
         # Collect response details
@@ -162,7 +164,11 @@ def get_s3_upload_url(taskId):
     params = {'fileName': taskId}
     get_s3_url = requests.get(f"{server_url}/api/httpTeleport/get-signed-url", params=params,
                                      headers=_get_headers(), timeout=25)
-    return get_s3_url.json()['data']
+
+    if get_s3_url.status_code == 200:
+        return get_s3_url.json()['data']
+    else:
+        raise Exception("Unable to get signedUrl " ,get_s3_url.status_code ,get_s3_url.content)
 
 
 
