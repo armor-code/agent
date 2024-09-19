@@ -124,7 +124,7 @@ def process_task(task):
             else:
                 print("Non-chunked response, processing whole payload...")
                 data = response.content  # Entire response is downloaded
-                with open(output_file, 'a') as f:
+                with open(output_file, 'ab') as f:
                     f.write(data)
 
         s3_upload_url = None
