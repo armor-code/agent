@@ -59,7 +59,7 @@ def main():
                 update_task_response = requests.post(
                     f"{server_url}/api/httpTeleport/putResult",
                     headers=_get_headers(),
-                    json=task,
+                    json=result,
                     timeout=30
                 )
 
