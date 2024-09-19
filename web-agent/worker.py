@@ -44,7 +44,8 @@ def main():
             if get_task_response.status_code == 200:
                 task = get_task_response.json()['data']
                 if task is None:
-                    print(f"Received ")
+                    print(f"Received empty task")
+                    return
                 print(f"Received task: {task['taskId']}")
                 
                 # Process the task
