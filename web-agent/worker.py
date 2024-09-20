@@ -15,7 +15,7 @@ server_url = None
 
 letters = string.ascii_letters
 rand_string = ''.join(random.choice(letters) for _ in range(10))
-output_file_folder = '/data'
+output_file_folder = 'data'
 output_file = output_file_folder + "/" + "large_output_file.txt" + rand_string
 
 max_file_size = 1024 * 10
@@ -49,12 +49,12 @@ def main():
                 task = get_task_response.json().get('data', None)
                 if task is None:
                     print(f"Received empty task", get_task_response)
-                    return
+                    continue
                 print(f"Received task: {task['taskId']}")
 
                 # Process the task
                 result = process_task(task)
-
+                print(result)
                 # Update the task
                 update_task_response = requests.post(
                     f"{server_url}/api/httpTeleport/putResult",
@@ -64,7 +64,7 @@ def main():
                 )
 
                 if update_task_response.status_code == 200:
-                    print(f"Task {task['taskId']} updated successfully.\n")
+                    print(f"Task {task['taskId']} updated successfully.\n", update_task_response.text)
                 else:
                     print(f"Failed to update task {task['taskId']}: {update_task_response.text}\n")
             elif get_task_response.status_code == 204:
@@ -80,7 +80,7 @@ def main():
             ##remove the output generated file
             if os.path.exists(output_file):
                 os.remove(output_file)
-                return
+
 
 
 def _get_headers():
@@ -101,7 +101,7 @@ def process_task(task):
     input = task.get('input')
     taskId = task.get('taskId')
     headers = task.get('requestHeaders', {})
-    method = task.get('method', 'GET').upper()
+    method = task.get('method').upper()
 
     print(f"Processing task {task['taskId']}: {method} {url}")
 
@@ -109,6 +109,7 @@ def process_task(task):
         response = requests.request(method, url, headers=headers, json=input, stream=True, timeout=120)
         print(f"Response: {response.status_code}")
 
+        data = None
         if response.status_code == 200:
             # Check if the response is chunked
             is_chunked = response.headers.get('Transfer-Encoding', None) == 'chunked'
@@ -137,24 +138,27 @@ def process_task(task):
             upload_s3(s3_upload_url)
 
         # Collect response details
-        _update_task_with_response(task, response, s3_upload_url)
+        _update_task_with_response(task, response, s3_upload_url, data)
 
-        print(f"Task {task['taskId']} processed successfully.")
+        ##print(f"Task {task['taskId']} processed successfully.")
         return task
 
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"Error processing task {task['taskId']}: {e}")
         task['output'] = str(e)
         return task
 
 
-def _update_task_with_response(task, response, s3_upload_url):
+def _update_task_with_response(task, response, s3_upload_url, data):
     task['responseHeaders'] = dict(response.headers)
-    task['statusCode'] = response.status_code
+    task['statusCode'] = response.status_code ##statusCode
     if s3_upload_url is None:
-        task['output'] = response.json()
+        with open(output_file, 'r') as file:
+            task['output'] = file.read()
+
     else:
         task['s3Url'] = s3_upload_url
+    task.pop('latch')
 
 
 def upload_s3(preSignedUrl):
@@ -180,7 +184,7 @@ def _createFolder():
 def get_s3_upload_url(taskId: str) -> Optional[str]:
 
     params = {'fileName': taskId + str(uuid.uuid1())}
-    get_s3_url = requests.get(f"{server_url}/api/httpTeleport/get-signed-url", params=params,
+    get_s3_url = requests.get(f"{server_url}/api/httpTeleport/uploadUrl", params=params,
                               headers=_get_headers(), timeout=25)
 
     if get_s3_url.status_code == 200:
