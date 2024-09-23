@@ -6,7 +6,7 @@ import random
 import string
 import sys
 import uuid
-from typing import Optional
+from typing import Optional, Tuple, Any
 
 import requests
 import time
@@ -52,7 +52,7 @@ def main():
             # Get the next task
             logging.info("Requesting task...")
             get_task_response = requests.get(
-                f"{server_url}/api/httpTeleport/getTask",
+                f"{server_url}/api/http-teleport/get-task",
                 headers=headers,
                 timeout=25)
 
@@ -69,7 +69,7 @@ def main():
 
                 # Update the task
                 update_task_response = requests.post(
-                    f"{server_url}/api/httpTeleport/putResult",
+                    f"{server_url}/api/http-teleport/put-result",
                     headers=_get_headers(),
                     json=result,
                     timeout=30
@@ -143,18 +143,19 @@ def process_task(task):
             with open(output_file, 'ab') as f:
                 f.write(data)
 
-        s3_upload_url = None
+        s3_signed_get_url = None
+
         file_size = os.path.getsize(output_file)
         logging.info("file size %s", file_size)
         is_s3_upload = file_size > max_file_size
         if is_s3_upload:
-            s3_upload_url = get_s3_upload_url(taskId)
+            s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
             if s3_upload_url is None:
                 logging.info("Failed to get S3 upload URL for URL ", url)
             upload_s3(s3_upload_url)
 
         # Collect response details
-        _update_task_with_response(task, response, s3_upload_url, data)
+        _update_task_with_response(task, response, s3_signed_get_url, data)
 
         logging.info("Task %s processed successfully.", taskId)
         return task
@@ -164,15 +165,14 @@ def process_task(task):
         task['output'] = str(e)
         return task
 
-def _update_task_with_response(task, response, s3_upload_url, data):
+def _update_task_with_response(task, response, s3_signed_get_url, data):
     task['responseHeaders'] = dict(response.headers)
     task['statusCode'] = response.status_code  # statusCode
-    if s3_upload_url is None:
+    if s3_signed_get_url is None:
         with open(output_file, 'r') as file:
             task['output'] = file.read()
     else:
-        task['s3Url'] = s3_upload_url
-    task.pop('latch')
+        task['s3Url'] = s3_signed_get_url
 
 def upload_s3(preSignedUrl):
     try:
@@ -199,12 +199,15 @@ def _createFolder():
 def log_error(msg, *args, **kwargs):
     logging.error(msg, *args, exc_info=True, **kwargs)
 
-def get_s3_upload_url(taskId: str) -> Optional[str]:
+def get_s3_upload_url(taskId: str) -> tuple[Any, Any]:
     params = {'fileName': f"{taskId}{uuid.uuid1()}"}
-    get_s3_url = requests.get(f"{server_url}/api/httpTeleport/uploadUrl", params=params,
+    get_s3_url = requests.get(f"{server_url}/api/http-teleport/upload-url", params=params,
                               headers=_get_headers(), timeout=25)
 
     if get_s3_url.status_code == 200:
+        data = get_s3_url.json().get('data', None)
+        if data is not None:
+            return data.get('putUrl'), data.get('getUrl')
         return get_s3_url.json().get('data', None)
     else:
         raise Exception("Unable to get signed URL", get_s3_url.status_code, get_s3_url.content)
