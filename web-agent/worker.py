@@ -13,12 +13,14 @@ import time
 import logging
 
 # Configure logging to append to a file
-logging.basicConfig(filename='output.txt', level=logging.INFO, filemode='a')
-logging.basicConfig(filename='output.txt', level=logging.ERROR, filemode='a')
 
-# Log messages will be appended to the file
-logging.info("This log entry will be appended.")
-logging.info("Another appended log entry.")
+logging.basicConfig(
+    filename='output.txt',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',  # Format log messages with date, time, level, and message
+    datefmt='%Y-%m-%d %H:%M:%S',
+    filemode='a'
+)
 
 api_key = None
 server_url = None
@@ -87,7 +89,7 @@ def main():
             logging.info("Error: %s", e)
             time.sleep(5)
         except Exception as e:
-            logging.info("Error while processing task %s with error %s",)
+            logging.info("Error while processing",)
         finally:
             # Remove the output generated file
             if os.path.exists(output_file):
@@ -191,6 +193,11 @@ def _createFolder():
             logging.info("An error occurred while creating the folder: %s", e)
     else:
         logging.info("Directory '%s' already exists.", output_file_folder)
+
+
+# Custom logging function for error logging with exc_info=True by default
+def log_error(msg, *args, **kwargs):
+    logging.error(msg, *args, exc_info=True, **kwargs)
 
 def get_s3_upload_url(taskId: str) -> Optional[str]:
     params = {'fileName': f"{taskId}{uuid.uuid1()}"}
