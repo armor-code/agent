@@ -15,7 +15,7 @@ import logging
 # Configure logging to append to a file
 
 logging.basicConfig(
-    filename='output.txt',
+    #filename='output.txt',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',  # Format log messages with date, time, level, and message
     datefmt='%Y-%m-%d %H:%M:%S',
@@ -30,7 +30,8 @@ rand_string = ''.join(random.choice(letters) for _ in range(10))
 output_file_folder = 'data'
 output_file = f"{output_file_folder}/large_output_file.txt{rand_string}"
 
-max_file_size = 1024 * 100 ##change this
+max_file_size = 1024 * 100  ##change this
+
 
 def main():
     global api_key, server_url
@@ -76,7 +77,8 @@ def main():
                 )
 
                 if update_task_response.status_code == 200:
-                    logging.info("Task %s updated successfully. Response: %s", task['taskId'], update_task_response.text)
+                    logging.info("Task %s updated successfully. Response: %s", task['taskId'],
+                                 update_task_response.text)
                 else:
                     logging.info("Failed to update task %s: %s", task['taskId'], update_task_response.text)
             elif get_task_response.status_code == 204:
@@ -89,11 +91,12 @@ def main():
             logging.info("Error: %s", e)
             time.sleep(5)
         except Exception as e:
-            logging.info("Error while processing",)
+            logging.error("Error while processing %s", e)
         finally:
             # Remove the output generated file
             if os.path.exists(output_file):
                 os.remove(output_file)
+
 
 def _get_headers():
     headers = {
@@ -101,6 +104,7 @@ def _get_headers():
         "Content-Type": "application/json"
     }
     return headers
+
 
 def process_task(task):
     tenant = task.get('tenant')
@@ -112,12 +116,12 @@ def process_task(task):
 
     logging.info("Processing task %s: %s %s", taskId, method, url)
 
-    if method == 'POST':
-        logging.info("Input is %s", input_data) ##todo: remove this log after testing
-        input_data = json.loads(input_data)
-
     try:
-        response = requests.request(method, url, headers=headers, json=input_data, stream=True, timeout=120)
+        if method == 'POST':
+            logging.info("Input is %s", input_data)  ##todo: remove this log after testing
+            # input_data = json.loads(input_data)
+
+        response = requests.request(method, url, headers=headers, data=input_data, stream=True, timeout=120)
         logging.info("Response: %d", response.status_code)
 
         data = None
@@ -130,18 +134,18 @@ def process_task(task):
                 # Process the response in chunks
                 for chunk in response.iter_content(chunk_size=1024 * 10):
                     if chunk:
-                        with open(output_file, 'ab') as f:
-                            f.write(chunk)
+                        with open(output_file, 'a') as f:
+                            f.write(chunk.decode('utf-8'))
 
             else:
                 logging.info("Non-chunked response, processing whole payload...")
                 data = response.content  # Entire response is downloaded
-                with open(output_file, 'ab') as f:
-                    f.write(data)
+                with open(output_file, 'a') as f:
+                    f.write(data.decode('utf-8'))
         else:
             data = response.content  # Entire response is downloaded
-            with open(output_file, 'ab') as f:
-                f.write(data)
+            with open(output_file, 'a') as f:
+                f.write(data.decode('utf-8'))
 
         s3_signed_get_url = None
 
@@ -165,6 +169,7 @@ def process_task(task):
         task['output'] = str(e)
         return task
 
+
 def _update_task_with_response(task, response, s3_signed_get_url, data):
     task['responseHeaders'] = dict(response.headers)
     task['statusCode'] = response.status_code  # statusCode
@@ -174,9 +179,10 @@ def _update_task_with_response(task, response, s3_signed_get_url, data):
     else:
         task['s3Url'] = s3_signed_get_url
 
+
 def upload_s3(preSignedUrl):
     try:
-        with open(output_file, 'rb') as file:
+        with open(output_file, 'r') as file:
             response = requests.put(preSignedUrl, data=file)
             response.raise_for_status()
             logging.info('File uploaded successfully')
@@ -184,6 +190,7 @@ def upload_s3(preSignedUrl):
     except Exception as e:
         logging.info("Error uploading to S3: %s", e)
         return False
+
 
 def _createFolder():
     if not os.path.exists(output_file_folder):  # Check if the directory exists
@@ -199,6 +206,7 @@ def _createFolder():
 def log_error(msg, *args, **kwargs):
     logging.error(msg, *args, exc_info=True, **kwargs)
 
+
 def get_s3_upload_url(taskId: str) -> tuple[Any, Any]:
     params = {'fileName': f"{taskId}{uuid.uuid1()}"}
     get_s3_url = requests.get(f"{server_url}/api/http-teleport/upload-url", params=params,
@@ -211,6 +219,7 @@ def get_s3_upload_url(taskId: str) -> tuple[Any, Any]:
         return get_s3_url.json().get('data', None)
     else:
         raise Exception("Unable to get signed URL", get_s3_url.status_code, get_s3_url.content)
+
 
 if __name__ == "__main__":
     _createFolder()
