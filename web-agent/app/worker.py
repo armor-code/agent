@@ -23,7 +23,8 @@ server_url = args.serverUrl
 api_key = args.apiKey
 agent_index = args.index
 
-fileName = 'output_' + str(agent_index) + '.log'
+##Setting up logging
+fileName = '/temp/output_' + str(agent_index) + '.log'
 logging.basicConfig(
     filename=fileName,
     level=logging.INFO,
@@ -34,10 +35,10 @@ logging.basicConfig(
 
 letters = string.ascii_letters
 rand_string = ''.join(random.choice(letters) for _ in range(10))
-output_file_folder = '../data'
+output_file_folder = '/temp/'
 output_file = f"{output_file_folder}/large_output_file.txt{rand_string}"
 
-max_file_size = 1024 * 100  ##change this
+max_file_size = 1024 * 10  ##max_size data that would be send in payload , more than that will send via s3
 
 
 def main():
@@ -56,7 +57,7 @@ def main():
 
     while True:
         try:
-            # Get the next task
+            # Get the next task for the agent
             logging.info("Requesting task...")
             get_task_response = requests.get(
                 f"{server_url}/api/http-teleport/get-task",
@@ -74,7 +75,7 @@ def main():
                 result = process_task(task)
                 logging.info("Task processing result: %s", result)
 
-                # Update the task
+                # Update the task status
                 update_task_response = requests.post(
                     f"{server_url}/api/http-teleport/put-result",
                     headers=_get_headers(),
@@ -113,7 +114,6 @@ def _get_headers():
 
 
 def process_task(task):
-    tenant = task.get('tenant')
     url = task.get('url')
     input_data = task.get('input')
     taskId = task.get('taskId')
@@ -123,10 +123,7 @@ def process_task(task):
     logging.info("Processing task %s: %s %s", taskId, method, url)
 
     try:
-        if method == 'POST':
-            logging.info("Input is %s", input_data)  ##todo: remove this log after testing
-            # input_data = json.loads(input_data)
-
+        # Running the request
         response = requests.request(method, url, headers=headers, data=input_data, stream=True, timeout=120, verify=False)
         logging.info("Response: %d", response.status_code)
 
@@ -149,7 +146,7 @@ def process_task(task):
                 with open(output_file, 'a') as f:
                     f.write(data.decode('utf-8'))
         else:
-            data = response.content  # Entire response is downloaded
+            data = response.content  # Entire response is downloaded if request failed
             with open(output_file, 'a') as f:
                 f.write(data.decode('utf-8'))
 
@@ -157,15 +154,15 @@ def process_task(task):
 
         file_size = os.path.getsize(output_file)
         logging.info("file size %s", file_size)
-        is_s3_upload = file_size > max_file_size
+        is_s3_upload = file_size > max_file_size ## if size is greater than max_size , upload data to s3
         if is_s3_upload:
             s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
             if s3_upload_url is None:
                 logging.info("Failed to get S3 upload URL for URL ", url)
             upload_s3(s3_upload_url)
 
-        # Collect response details
-        _update_task_with_response(task, response, s3_signed_get_url, data)
+        # update task with the output
+        _update_task_with_response(task, response, s3_signed_get_url)
 
         logging.info("Task %s processed successfully.", taskId)
         return task
@@ -176,10 +173,10 @@ def process_task(task):
         return task
 
 
-def _update_task_with_response(task, response, s3_signed_get_url, data):
+def _update_task_with_response(task, response, s3_signed_get_url):
     task['responseHeaders'] = dict(response.headers)
     task['statusCode'] = response.status_code  # statusCode
-    if s3_signed_get_url is None:
+    if s3_signed_get_url is None: # check if needs to send data or fileURL
         with open(output_file, 'r') as file:
             task['output'] = file.read()
     else:
