@@ -23,7 +23,7 @@ server_url = args.serverUrl
 api_key = args.apiKey
 agent_index = args.index
 
-fileName = 'output_' + str(1) + '.log'
+fileName = 'output_' + str(agent_index) + '.log'
 logging.basicConfig(
     filename=fileName,
     level=logging.INFO,
@@ -127,7 +127,7 @@ def process_task(task):
             logging.info("Input is %s", input_data)  ##todo: remove this log after testing
             # input_data = json.loads(input_data)
 
-        response = requests.request(method, url, headers=headers, data=input_data, stream=True, timeout=120)
+        response = requests.request(method, url, headers=headers, data=input_data, stream=True, timeout=120, verify=False)
         logging.info("Response: %d", response.status_code)
 
         data = None
