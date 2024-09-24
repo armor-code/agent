@@ -12,12 +12,29 @@ import requests
 import time
 import logging
 
-api_key = None
-server_url = None
+parser = argparse.ArgumentParser()
+parser.add_argument("--serverUrl", required=False, help="Server Url")
+parser.add_argument("--apiKey", required=False, help="Api Key")
+parser.add_argument("--index", required=True, help="Agent index no")
+
+args = parser.parse_args()
+
+server_url = args.serverUrl
+api_key = args.apiKey
+agent_index = args.index
+
+fileName = 'output_' + str(1) + '.log'
+logging.basicConfig(
+    filename=fileName,
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',  # Format log messages with date, time, level, and message
+    datefmt='%Y-%m-%d %H:%M:%S',
+    filemode='a'
+)
 
 letters = string.ascii_letters
 rand_string = ''.join(random.choice(letters) for _ in range(10))
-output_file_folder = 'data'
+output_file_folder = '../data'
 output_file = f"{output_file_folder}/large_output_file.txt{rand_string}"
 
 max_file_size = 1024 * 100  ##change this
@@ -25,25 +42,6 @@ max_file_size = 1024 * 100  ##change this
 
 def main():
     global api_key, server_url
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--serverUrl", required=False, help="Server Url")
-    parser.add_argument("--apiKey", required=False, help="Api Key")
-    parser.add_argument("--index", required=True, help="Agent index no")
-    args = parser.parse_args()
-
-    server_url = args.serverUrl
-    api_key = args.apiKey
-    agent_index = args.index
-
-    # Configure logging to append to a file
-
-    logging.basicConfig(
-        filename='output_' + str(agent_index) + '.txt',
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s',  # Format log messages with date, time, level, and message
-        datefmt='%Y-%m-%d %H:%M:%S',
-        filemode='a'
-    )
 
     if server_url is None:
         server_url = os.getenv('server_url')
