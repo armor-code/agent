@@ -26,7 +26,7 @@ agent_index = args.index
 fileName = 'output_' + str(1) + '.log'
 logging.basicConfig(
     filename=fileName,
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',  # Format log messages with date, time, level, and message
     datefmt='%Y-%m-%d %H:%M:%S',
     filemode='a'
