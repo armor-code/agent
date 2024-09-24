@@ -11,7 +11,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN apt-get update && apt-get install -y supervisor && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -d /etc/supervisor/conf.d/
+RUN mkdir -p /etc/supervisor/conf.d/
+
+RUN mkdir -p /temp
+
+RUN mkdir -p /var/log
+
 
 # Copy the supervisor configuration file
 COPY supervisord.conf.sample /etc/supervisor/conf.d/supervisord.conf
