@@ -12,16 +12,6 @@ import requests
 import time
 import logging
 
-# Configure logging to append to a file
-
-logging.basicConfig(
-    #filename='output.txt',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',  # Format log messages with date, time, level, and message
-    datefmt='%Y-%m-%d %H:%M:%S',
-    filemode='a'
-)
-
 api_key = None
 server_url = None
 
@@ -36,15 +26,33 @@ max_file_size = 1024 * 100  ##change this
 def main():
     global api_key, server_url
     parser = argparse.ArgumentParser()
-    parser.add_argument("--serverUrl", required=True, help="Database password")
-    parser.add_argument("--apiKey", required=False, help="bucketName")
+    parser.add_argument("--serverUrl", required=False, help="Server Url")
+    parser.add_argument("--apiKey", required=False, help="Api Key")
+    parser.add_argument("--index", required=True, help="Agent index no")
     args = parser.parse_args()
 
     server_url = args.serverUrl
     api_key = args.apiKey
+    agent_index = args.index
+
+    # Configure logging to append to a file
+
+    logging.basicConfig(
+        filename='output_' + str(agent_index) + '.txt',
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s',  # Format log messages with date, time, level, and message
+        datefmt='%Y-%m-%d %H:%M:%S',
+        filemode='a'
+    )
+
+    if server_url is None:
+        server_url = os.getenv('server_url')
 
     if api_key is None:
         api_key = os.getenv("api_key")
+
+    if server_url is None or api_key is None:
+        logging.error("Empty serverUrl or api Key %s", server_url)
 
     headers = _get_headers()
 
