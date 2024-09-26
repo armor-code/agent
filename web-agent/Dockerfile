@@ -1,15 +1,15 @@
 # Use an official Python runtime as a parent image
-FROM python:3.9-slim
+FROM alpine:edge
 
 # Set the working directory in the container
 WORKDIR /usr/src
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Install supervisor
-RUN apt-get update && apt-get install -y supervisor && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apk update && \
+    apk upgrade && \
+    apk --update --no-cache add py3-requests && \
+    apk add supervisor && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /etc/supervisor/conf.d/
 
@@ -29,4 +29,4 @@ COPY app/* ./
 RUN chmod +x /usr/src/app/worker.py
 
 # Command to run supervisor
-CMD ["/usr/bin/supervisord"]
+CMD ["/usr/bin/supervisord","-c","/etc/supervisor/conf.d/supervisord.conf"]
