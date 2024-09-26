@@ -35,8 +35,8 @@ logging.basicConfig(
 
 letters = string.ascii_letters
 rand_string = ''.join(random.choice(letters) for _ in range(10))
-output_file_folder = '/temp/'
-output_file = f"{output_file_folder}/large_output_file.txt{rand_string}"
+output_file_folder = '/temp'
+output_file = f"{output_file_folder}/large_output_file{rand_string}.txt"
 
 max_file_size = 1024 * 10  ##max_size data that would be send in payload , more than that will send via s3
 
@@ -73,7 +73,6 @@ def main():
 
                 # Process the task
                 result = process_task(task)
-                logging.info("Task processing result: %s", result)
 
                 # Update the task status
                 update_task_response = requests.post(
@@ -168,7 +167,7 @@ def process_task(task):
         return task
 
     except Exception as e:
-        logging.info("Error processing task %s: %s", taskId, e)
+        logging.error("Error processing task %s: %s", taskId, e)
         task['output'] = str(e)
         return task
 
@@ -186,12 +185,16 @@ def _update_task_with_response(task, response, s3_signed_get_url):
 def upload_s3(preSignedUrl):
     try:
         with open(output_file, 'r') as file:
-            response = requests.put(preSignedUrl, data=file)
+            headers = {
+                "Content-Type": "application/json;charset=utf-8"
+            }
+            data = file.read().encode('utf-8')
+            response = requests.put(preSignedUrl, headers=headers, data=data)
             response.raise_for_status()
             logging.info('File uploaded successfully')
             return True
     except Exception as e:
-        logging.info("Error uploading to S3: %s", e)
+        logging.exception("Error uploading for signed URL %s to S3: %s", preSignedUrl, e)
         return False
 
 
@@ -211,7 +214,7 @@ def log_error(msg, *args, **kwargs):
 
 
 def get_s3_upload_url(taskId: str) -> tuple[Any, Any]:
-    params = {'fileName': f"{taskId}{uuid.uuid1()}"}
+    params = {'fileName': f"{taskId}{uuid.uuid4().hex}.txt"}
     get_s3_url = requests.get(f"{server_url}/api/http-teleport/upload-url", params=params,
                               headers=_get_headers(), timeout=25)
 
