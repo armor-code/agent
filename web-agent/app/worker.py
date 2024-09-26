@@ -14,7 +14,7 @@ import time
 # Global variables
 letters: str = string.ascii_letters
 rand_string: str = ''.join(random.choice(letters) for _ in range(10))
-output_file_folder: str = '/temp'
+output_file_folder: str = '/temp/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 
 max_file_size: int = 1024 * 10  # max_size data that would be sent in payload, more than that will send via s3
@@ -219,7 +219,6 @@ def upload_s3(preSignedUrl: str) -> bool:
         raise
 
 
-
 def _createFolder() -> None:
     if not os.path.exists(output_file_folder):  # Check if the directory exists
         try:
@@ -230,11 +229,6 @@ def _createFolder() -> None:
             raise  # Re-raise the exception as this is a critical error
     else:
         logger.info("Output directory already exists: %s", output_file_folder)
-
-
-# Custom logger function for error logger with exc_info=True by default
-def log_error(msg: str, *args: Any, **kwargs: Any) -> None:
-    logger.error(msg, *args, exc_info=True, **kwargs)
 
 
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
@@ -262,7 +256,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
 # Function to set up logging with timed rotation and log retention
 def setup_logger(index: str) -> logging.Logger:
-    log_filename: str = os.path.join("/var/log", f"app1_log{index}.log")
+    log_filename: str = os.path.join("/temp/log", f"app1_log{index}.log")
 
     # Create a TimedRotatingFileHandler
     handler: TimedRotatingFileHandler = TimedRotatingFileHandler(
