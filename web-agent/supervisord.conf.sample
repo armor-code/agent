@@ -3,6 +3,7 @@ nodaemon=true
 
 [program:AGENT_1]
 command=python3 /usr/src/app/worker.py --index 1
+user=root
 autostart=true
 autorestart=true
 restart_delay=5
@@ -11,6 +12,7 @@ stderr_logfile=/temp/agent_1-error.log
 
 [program:AGENT_2]
 command=python3 /usr/src/app/worker.py --index 2
+user=root
 autostart=true
 autorestart=true
 restart_delay=5
@@ -19,6 +21,7 @@ stderr_logfile=/temp/agent_2-error.log
 
 [program:AGENT_3]
 command=python3 /usr/src/app/worker.py --index 3
+user=root
 autostart=true
 autorestart=true
 restart_delay=5
@@ -27,6 +30,7 @@ stderr_logfile=/temp/agent_3-error.log
 
 [program:AGENT_4]
 command=python3 /usr/src/app/worker.py --index 4
+user=root
 autostart=true
 autorestart=true
 restart_delay=5
@@ -35,6 +39,7 @@ stderr_logfile=/temp/agent_4-error.log
 
 [program:AGENT_5]
 command=python3 /usr/src/app/worker.py --index 5
+user=root
 autostart=true
 autorestart=true
 restart_delay=5
