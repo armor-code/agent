@@ -19,29 +19,3 @@ restart_delay=5
 stdout_logfile=/temp/agent_2.log
 stderr_logfile=/temp/agent_2-error.log
 
-[program:AGENT_3]
-command=python3 /usr/src/app/worker.py --index 3
-user=root
-autostart=true
-autorestart=true
-restart_delay=5
-stdout_logfile=/temp/agent_3.log
-stderr_logfile=/temp/agent_3-error.log
-
-[program:AGENT_4]
-command=python3 /usr/src/app/worker.py --index 4
-user=root
-autostart=true
-autorestart=true
-restart_delay=5
-stdout_logfile=/temp/agent_4.log
-stderr_logfile=/temp/agent_4-error.log
-
-[program:AGENT_5]
-command=python3 /usr/src/app/worker.py --index 5
-user=root
-autostart=true
-autorestart=true
-restart_delay=5
-stdout_logfile=/temp/agent_5.log
-stderr_logfile=/temp/agent_5-error.log
