@@ -14,7 +14,7 @@ import time
 # Global variables
 letters: str = string.ascii_letters
 rand_string: str = ''.join(random.choice(letters) for _ in range(10))
-log_folder : str = '/temp/log'
+log_folder: str = '/temp/log'
 output_file_folder: str = '/temp/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 
@@ -39,8 +39,6 @@ def main() -> None:
     agent_index: str = args.index
 
     logger = setup_logger(agent_index)
-
-
 
     # Fallback to environment variables if not provided as arguments
     if server_url is None:
@@ -127,13 +125,15 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     taskId: str = task.get('taskId')
     headers: Dict[str, str] = task.get('requestHeaders', {})
     method: str = task.get('method').upper()
-
+    expiryTime: int = task.get('expiryTsMs', round((time.time() + 300) * 1000))
     logger.info("Processing task %s: %s %s", taskId, method, url)
 
     try:
         # Running the request
+        timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
+        logger.info("expiry %s, %s", expiryTime, timeout)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=120,
+                                                       timeout=timeout,
                                                        verify=False)
         logger.info("Response: %d", response.status_code)
 
@@ -227,10 +227,9 @@ def _createFolder(folder_path) -> None:
             print("Created output directory: %s", folder_path)
         except Exception as e:
             print("Error creating output folder: %s", e)
-            raise  # Re-raise the exception as this is a critical error
+            raise
     else:
         print("Output directory already exists: %s", folder_path)
-
 
 
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
@@ -258,7 +257,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
 # Function to set up logging with timed rotation and log retention
 def setup_logger(index: str) -> logging.Logger:
-    log_filename: str = os.path.join("/temp/log", f"app1_log{index}.log")
+    log_filename: str = os.path.join("/temp/log", f"app_log{index}.log")
 
     # Create a TimedRotatingFileHandler
     handler: TimedRotatingFileHandler = TimedRotatingFileHandler(
@@ -283,5 +282,5 @@ def setup_logger(index: str) -> logging.Logger:
 
 if __name__ == "__main__":
     _createFolder(log_folder)  # create folder to store log files
-    _createFolder(output_file_folder) # create folder to store output files
+    _createFolder(output_file_folder)  # create folder to store output files
     main()
