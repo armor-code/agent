@@ -18,7 +18,7 @@ log_folder: str = '/temp/log'
 output_file_folder: str = '/temp/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 
-max_file_size: int = 1024 * 10  # max_size data that would be sent in payload, more than that will send via s3
+max_file_size: int = 1024 * 100  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
