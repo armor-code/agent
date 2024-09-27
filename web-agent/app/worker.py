@@ -14,6 +14,7 @@ import time
 # Global variables
 letters: str = string.ascii_letters
 rand_string: str = ''.join(random.choice(letters) for _ in range(10))
+log_folder : str = '/temp/log'
 output_file_folder: str = '/temp/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 
@@ -39,7 +40,8 @@ def main() -> None:
 
     logger = setup_logger(agent_index)
 
-    _createFolder()  # create folder to store output files
+    _createFolder(log_folder)  # create folder to store log files
+    _createFolder(output_file_folder) # create folder to store output files
 
     # Fallback to environment variables if not provided as arguments
     if server_url is None:
@@ -219,16 +221,17 @@ def upload_s3(preSignedUrl: str) -> bool:
         raise
 
 
-def _createFolder() -> None:
-    if not os.path.exists(output_file_folder):  # Check if the directory exists
+def _createFolder(folder_path) -> None:
+    if not os.path.exists(folder_path):  # Check if the directory exists
         try:
-            os.mkdir(output_file_folder)  # Create the directory if it doesn't exist
-            logger.info("Created output directory: %s", output_file_folder)
+            os.mkdir(folder_path)  # Create the directory if it doesn't exist
+            logger.info("Created output directory: %s", folder_path)
         except Exception as e:
             logger.error("Error creating output folder: %s", e)
             raise  # Re-raise the exception as this is a critical error
     else:
-        logger.info("Output directory already exists: %s", output_file_folder)
+        logger.info("Output directory already exists: %s", folder_path)
+
 
 
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:

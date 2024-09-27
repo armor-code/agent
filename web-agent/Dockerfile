@@ -13,9 +13,8 @@ RUN apk update && \
 
 RUN mkdir -p /etc/supervisor/conf.d/
 
-RUN mkdir -p /temp/output_files
+RUN mkdir -p /temp/
 
-RUN mkdir -p /temp/log
 
 
 
