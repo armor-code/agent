@@ -40,8 +40,7 @@ def main() -> None:
 
     logger = setup_logger(agent_index)
 
-    _createFolder(log_folder)  # create folder to store log files
-    _createFolder(output_file_folder) # create folder to store output files
+
 
     # Fallback to environment variables if not provided as arguments
     if server_url is None:
@@ -225,12 +224,12 @@ def _createFolder(folder_path) -> None:
     if not os.path.exists(folder_path):  # Check if the directory exists
         try:
             os.mkdir(folder_path)  # Create the directory if it doesn't exist
-            logger.info("Created output directory: %s", folder_path)
+            print("Created output directory: %s", folder_path)
         except Exception as e:
-            logger.error("Error creating output folder: %s", e)
+            print("Error creating output folder: %s", e)
             raise  # Re-raise the exception as this is a critical error
     else:
-        logger.info("Output directory already exists: %s", folder_path)
+        print("Output directory already exists: %s", folder_path)
 
 
 
@@ -283,4 +282,6 @@ def setup_logger(index: str) -> logging.Logger:
 
 
 if __name__ == "__main__":
+    _createFolder(log_folder)  # create folder to store log files
+    _createFolder(output_file_folder) # create folder to store output files
     main()
