@@ -22,6 +22,7 @@ max_file_size: int = 1024 * 100  # max_size data that would be sent in payload, 
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
+max_retry: int = 3
 
 
 def main() -> None:
@@ -75,20 +76,7 @@ def main() -> None:
                 result: Dict[str, Any] = process_task(task)
 
                 # Update the task status
-                update_task_response: requests.Response = requests.post(
-                    f"{server_url}/api/http-teleport/put-result",
-                    headers=_get_headers(),
-                    json=result,
-                    timeout=30
-                )
-
-                if update_task_response.status_code == 200:
-                    logger.info("Task %s updated successfully. Response: %s", task['taskId'],
-                                update_task_response.text)
-                else:
-                    logger.warning("Failed to update task %s: %s", task['taskId'], update_task_response.text)
-                    # Consider implementing a retry mechanism here
-
+                update_task(result)
             elif get_task_response.status_code == 204:
                 logger.info("No task available. Waiting...")
                 time.sleep(5)
@@ -109,6 +97,37 @@ def main() -> None:
                     os.remove(output_file)
                 except OSError as e:
                     logger.error("Error removing output file: %s", e)
+
+
+def update_task(task: Dict[str, Any], count: int = 0) -> None:
+    # Update the task status
+    if count > max_retry:
+        logger.error("Retry count exceeds for task %s", task['taskId'])
+        return
+    try:
+        update_task_response: requests.Response = requests.post(
+            f"{server_url}/api/http-teleport/put-result",
+            headers=_get_headers(),
+            json=task,
+            timeout=30
+        )
+
+        if update_task_response.status_code == 200:
+            logger.info("Task %s updated successfully. Response: %s", task['taskId'],
+                        update_task_response.text)
+        elif update_task_response.status_code == 429:
+            time.sleep(2)
+            logger.warning("Rate limit hit while updating the task output, retrying again for task %s", task['taskId'])
+            count = count + 1
+            update_task(task, count)
+        else:
+            logger.warning("Failed to update task %s: %s", task['taskId'], update_task_response.text)
+
+
+    except requests.exceptions.RequestException as e:
+        logger.error("Network error processing task %s: %s", task['taskId'], e, exc_info=True)
+        count = count + 1
+        update_task(task, count)
 
 
 def _get_headers() -> Dict[str, str]:
@@ -148,16 +167,17 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 for chunk in response.iter_content(chunk_size=1024 * 10):
                     if chunk:
                         with open(output_file, 'a') as f:
-                            f.write(chunk.decode('utf-8'))
+                            decoded_data = chunk.decode('utf-8', errors='replace')
+                            f.write(decoded_data)
             else:
                 logger.info("Non-chunked response, processing whole payload...")
                 data = response.content  # Entire response is downloaded
                 with open(output_file, 'a') as f:
-                    f.write(data.decode('utf-8'))
+                    f.write(data.decode('utf-8', errors='replace'))
         else:
             data = response.content  # Entire response is downloaded if request failed
             with open(output_file, 'a') as f:
-                f.write(data.decode('utf-8'))
+                f.write(data.decode('utf-8', errors='replace'))
 
         s3_signed_get_url: Optional[str] = None
 
@@ -170,9 +190,6 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 logger.warning("Failed to get S3 upload URL for URL %s", url)
             else:
                 upload_success = upload_s3(s3_upload_url)
-                if not upload_success:
-                    logger.error("Failed to upload file to S3")
-                    # Consider how to handle this failure (e.g., retry, mark task as failed)
 
         # update task with the output
         _update_task_with_response(task, response, s3_signed_get_url)
@@ -195,7 +212,7 @@ def _update_task_with_response(task: Dict[str, Any], response: requests.Response
     task['responseHeaders'] = dict(response.headers)
     task['statusCode'] = response.status_code
     if s3_signed_get_url is None:  # check if needs to send data or fileURL
-        with open(output_file, 'r') as file:
+        with open(output_file, 'r', encoding='utf-8', errors='replace') as file:
             task['output'] = file.read()
     else:
         task['s3Url'] = s3_signed_get_url
@@ -207,7 +224,7 @@ def upload_s3(preSignedUrl: str) -> bool:
             headers: Dict[str, str] = {
                 "Content-Type": "application/json;charset=utf-8"
             }
-            data: bytes = file.read().encode('utf-8')
+            data: bytes = file.read().encode('utf-8', errors='replace')
             response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
@@ -266,7 +283,7 @@ def setup_logger(index: str) -> logging.Logger:
 
     # Set the log format
     formatter: logging.Formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     handler.setFormatter(formatter)
