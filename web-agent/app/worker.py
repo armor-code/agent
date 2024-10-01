@@ -61,7 +61,7 @@ def main() -> None:
             get_task_response: requests.Response = requests.get(
                 f"{server_url}/api/http-teleport/get-task",
                 headers=headers,
-                timeout=25)
+                timeout=25, verify=False)
 
             if get_task_response.status_code == 200:
                 task: Optional[Dict[str, Any]] = get_task_response.json().get('data', None)
@@ -109,7 +109,8 @@ def update_task(task: Dict[str, Any], count: int = 0) -> None:
             f"{server_url}/api/http-teleport/put-result",
             headers=_get_headers(),
             json=task,
-            timeout=30
+            timeout=30,
+            verify=False
         )
 
         if update_task_response.status_code == 200:
@@ -225,7 +226,7 @@ def upload_s3(preSignedUrl: str) -> bool:
                 "Content-Type": "application/json;charset=utf-8"
             }
             data: bytes = file.read().encode('utf-8', errors='replace')
-            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data)
+            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=False)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
