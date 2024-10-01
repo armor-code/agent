@@ -7,9 +7,14 @@ WORKDIR /usr/src
 # Install supervisor
 RUN apk update && \
     apk upgrade && \
-    apk --update --no-cache add py3-requests && \
-    apk add supervisor && \
-    rm -rf /var/lib/apt/lists/*
+    apk --update --no-cache add supervisor py3-pip && \
+    python3 -m venv /usr/src/venv && \
+    /usr/src/venv/bin/pip install --upgrade requests && \
+    apk --update --no-cache upgrade openssl libssl3 libcrypto3 && \
+    rm -rf /var/lib/apt/lists/* && \
+    apk del py3-pip && \
+    rm -rf /usr/lib/python3.12/ensurepip /usr/src/venv/bin/pip /usr/src/venv/bin/pip3.12 /usr/src/venv/bin/pip3 /usr/src/venv/lib/python3.12/site-packages/pip-24.2.dist-info/ /usr/src/venv/lib/python3.12/site-packages/pip/
+
 
 RUN mkdir -p /etc/supervisor/conf.d/
 
