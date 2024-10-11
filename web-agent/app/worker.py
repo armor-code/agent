@@ -23,10 +23,13 @@ logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
 max_retry: int = 3
+exponential_time_backoff: int = 5
+max_backoff_time: int = 600
+min_backoff_time: int = 5
 
 
 def main() -> None:
-    global api_key, server_url, logger
+    global api_key, server_url, logger, exponential_time_backoff
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -64,6 +67,7 @@ def main() -> None:
                 timeout=25, verify=False)
 
             if get_task_response.status_code == 200:
+                exponential_time_backoff = min_backoff_time
                 task: Optional[Dict[str, Any]] = get_task_response.json().get('data', None)
                 if task is None:
                     logger.info("Received empty task")
@@ -80,8 +84,12 @@ def main() -> None:
             elif get_task_response.status_code == 204:
                 logger.info("No task available. Waiting...")
                 time.sleep(5)
+            elif get_task_response.status_code > 500:
+                logger.error("Getting 5XX error %d, increasing backoff time", get_task_response.status_code)
+                time.sleep(exponential_time_backoff)
+                exponential_time_backoff = min(max_backoff_time, exponential_time_backoff*2)
             else:
-                logger.warning("Unexpected response: %d", get_task_response.status_code)
+                logger.error("Unexpected response: %d", get_task_response.status_code)
                 time.sleep(5)
 
         except requests.exceptions.RequestException as e:
@@ -238,7 +246,7 @@ def upload_s3(preSignedUrl: str) -> bool:
         raise
 
 
-def _createFolder(folder_path) -> None:
+def _createFolder(folder_path: str) -> None:
     if not os.path.exists(folder_path):  # Check if the directory exists
         try:
             os.mkdir(folder_path)  # Create the directory if it doesn't exist
