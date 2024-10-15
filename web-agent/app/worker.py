@@ -14,8 +14,8 @@ import time
 # Global variables
 letters: str = string.ascii_letters
 rand_string: str = ''.join(random.choice(letters) for _ in range(10))
-log_folder: str = '/temp/log'
-output_file_folder: str = '/temp/output_files'
+log_folder: str = '/tmp/log'
+output_file_folder: str = '/tmp/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 
 max_file_size: int = 1024 * 100  # max_size data that would be sent in payload, more than that will send via s3
@@ -64,7 +64,7 @@ def main() -> None:
             get_task_response: requests.Response = requests.get(
                 f"{server_url}/api/http-teleport/get-task",
                 headers=headers,
-                timeout=25, verify=False)
+                timeout=25)
 
             if get_task_response.status_code == 200:
                 exponential_time_backoff = min_backoff_time
@@ -117,8 +117,7 @@ def update_task(task: Dict[str, Any], count: int = 0) -> None:
             f"{server_url}/api/http-teleport/put-result",
             headers=_get_headers(),
             json=task,
-            timeout=30,
-            verify=False
+            timeout=30
         )
 
         if update_task_response.status_code == 200:
@@ -161,8 +160,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=timeout,
-                                                       verify=False)
+                                                       timeout=timeout)
         logger.info("Response: %d", response.status_code)
 
         data: Optional[bytes] = None
@@ -234,7 +232,7 @@ def upload_s3(preSignedUrl: str) -> bool:
                 "Content-Type": "application/json;charset=utf-8"
             }
             data: bytes = file.read().encode('utf-8', errors='replace')
-            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=False)
+            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -283,7 +281,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
 # Function to set up logging with timed rotation and log retention
 def setup_logger(index: str) -> logging.Logger:
-    log_filename: str = os.path.join("/temp/log", f"app_log{index}.log")
+    log_filename: str = os.path.join("/tmp/log", f"app_log{index}.log")
 
     # Create a TimedRotatingFileHandler
     handler: TimedRotatingFileHandler = TimedRotatingFileHandler(
