@@ -10,6 +10,7 @@ from typing import Optional, Tuple, Any, Dict
 import requests
 import logging
 import time
+import concurrent.futures
 
 # Global variables
 letters: str = string.ascii_letters
@@ -22,14 +23,15 @@ max_file_size: int = 1024 * 100  # max_size data that would be sent in payload, 
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
+
+verify_cert: bool = True
 max_retry: int = 3
-exponential_time_backoff: int = 5
 max_backoff_time: int = 600
 min_backoff_time: int = 5
 
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -38,8 +40,8 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    server_url = args.serverUrl
-    api_key = args.apiKey
+    server_url: str = args.serverUrl
+    api_key: str = args.apiKey
     agent_index: str = args.index
 
     logger = setup_logger(agent_index)
@@ -50,13 +52,30 @@ def main() -> None:
     if api_key is None:
         api_key = os.getenv("api_key")
 
+    if os.getenv("verify") is not None:
+        env_verify: str = os.getenv("verify")
+        if env_verify.lower() == "false":
+            verify_cert = False
+        elif env_verify.lower() == "true":
+            verify_cert = True
+        else:
+            logger.warning("Invalid value provided for verify %s , defaulting to True", env_verify)
+
     if server_url is None or api_key is None:
         logger.error("Empty serverUrl or api Key %s", server_url)
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
-    headers: Dict[str, str] = _get_headers()
+    # Creating thread pool to use other thread if one thread is blocked in I/O
+    pool: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+    pool.submit(process)
+    pool.submit(process)
 
-    # Main loop to continuously process tasks
+    pool.shutdown(wait=True)
+
+
+def process() -> None:
+    headers: Dict[str, str] = _get_headers()
+    thread_backoff_time: int = min_backoff_time
     while True:
         try:
             # Get the next task for the agent
@@ -64,10 +83,10 @@ def main() -> None:
             get_task_response: requests.Response = requests.get(
                 f"{server_url}/api/http-teleport/get-task",
                 headers=headers,
-                timeout=25, verify=False)
+                timeout=25, verify=verify_cert)
 
             if get_task_response.status_code == 200:
-                exponential_time_backoff = min_backoff_time
+                thread_backoff_time = min_backoff_time
                 task: Optional[Dict[str, Any]] = get_task_response.json().get('data', None)
                 if task is None:
                     logger.info("Received empty task")
@@ -86,8 +105,8 @@ def main() -> None:
                 time.sleep(5)
             elif get_task_response.status_code > 500:
                 logger.error("Getting 5XX error %d, increasing backoff time", get_task_response.status_code)
-                time.sleep(exponential_time_backoff)
-                exponential_time_backoff = min(max_backoff_time, exponential_time_backoff*2)
+                time.sleep(thread_backoff_time)
+                thread_backoff_time = min(max_backoff_time, thread_backoff_time * 2)
             else:
                 logger.error("Unexpected response: %d", get_task_response.status_code)
                 time.sleep(5)
@@ -117,7 +136,7 @@ def update_task(task: Dict[str, Any], count: int = 0) -> None:
             f"{server_url}/api/http-teleport/put-result",
             headers=_get_headers(),
             json=task,
-            timeout=30, verify=False
+            timeout=30, verify=verify_cert
         )
 
         if update_task_response.status_code == 200:
@@ -160,7 +179,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=timeout, verify=False)
+                                                       timeout=timeout, verify=verify_cert)
         logger.info("Response: %d", response.status_code)
 
         data: Optional[bytes] = None
@@ -232,7 +251,7 @@ def upload_s3(preSignedUrl: str) -> bool:
                 "Content-Type": "application/json;charset=utf-8"
             }
             data: bytes = file.read().encode('utf-8', errors='replace')
-            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=False)
+            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=verify_cert)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -263,7 +282,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
             f"{server_url}/api/http-teleport/upload-url",
             params=params,
             headers=_get_headers(),
-            timeout=25, verify=False
+            timeout=25, verify=verify_cert
         )
         get_s3_url.raise_for_status()
 
