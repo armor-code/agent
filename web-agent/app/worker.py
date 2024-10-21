@@ -185,6 +185,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # Running the request
         # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         # logger.info("expiry %s, %s", expiryTime, timeout)
+        logger.info("Request for task %s with headers % and input_data %s", taskId, headers, input_data)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
         logger.info("Response: %d", response.status_code)
@@ -208,6 +209,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 with open(output_file, 'a') as f:
                     f.write(data.decode('utf-8', errors='replace'))
         else:
+            logger.info("Status code is not 200 , response is %s", data)
             data = response.content  # Entire response is downloaded if request failed
             with open(output_file, 'a') as f:
                 f.write(data.decode('utf-8', errors='replace'))
