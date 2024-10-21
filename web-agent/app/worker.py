@@ -10,7 +10,7 @@ from typing import Optional, Tuple, Any, Dict
 import requests
 import logging
 import time
-import concurrent.futures
+
 
 # Global variables
 letters: str = string.ascii_letters
