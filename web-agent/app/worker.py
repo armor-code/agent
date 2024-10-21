@@ -254,7 +254,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def check_and_update_encode_url(headers, url: str):
-    if headers["Content-Type"] is None and "/cxrestapi/auth/identity/connect/token" in url:
+    if "/cxrestapi/auth/identity/connect/token" in url:
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
 
