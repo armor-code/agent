@@ -24,25 +24,35 @@ logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
 
+# todo: different verify for
 verify_cert: bool = True
 max_retry: int = 3
 max_backoff_time: int = 600
 min_backoff_time: int = 5
 
+timeout: int = 10
+
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
     parser.add_argument("--index", required=True, help="Agent index no")
+    parser.add_argument("--timeout", required=False, help="timeout", default=10)
+    parser.add_argument("--verify", required=False, help="Verify Cert", default=True)
 
     args = parser.parse_args()
 
-    server_url: str = args.serverUrl
-    api_key: str = args.apiKey
+    server_url = args.serverUrl
+    api_key = args.apiKey
     agent_index: str = args.index
+    timeout_cmd = args.timeout
+    verify_cert = args.verify
+
+    if timeout_cmd is not None:
+        timeout = int(timeout_cmd)
 
     logger = setup_logger(agent_index)
 
@@ -52,25 +62,17 @@ def main() -> None:
     if api_key is None:
         api_key = os.getenv("api_key")
 
-    if os.getenv("verify") is not None:
-        env_verify: str = os.getenv("verify")
-        if env_verify.lower() == "false":
-            verify_cert = False
-        elif env_verify.lower() == "true":
-            verify_cert = True
-        else:
-            logger.warning("Invalid value provided for verify %s , defaulting to True", env_verify)
-
     if server_url is None or api_key is None:
         logger.error("Empty serverUrl or api Key %s", server_url)
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
     # Creating thread pool to use other thread if one thread is blocked in I/O
-    pool: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-    pool.submit(process)
-    pool.submit(process)
-
-    pool.shutdown(wait=True)
+    # pool: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+    # pool.submit(process)
+    # pool.submit(process)
+    #
+    # pool.shutdown(wait=True)
+    process()
 
 
 def process() -> None:
@@ -176,8 +178,8 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Running the request
-        timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
-        logger.info("expiry %s, %s", expiryTime, timeout)
+        # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
+        # logger.info("expiry %s, %s", expiryTime, timeout)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
         logger.info("Response: %d", response.status_code)
