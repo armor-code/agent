@@ -49,13 +49,18 @@ def main() -> None:
     api_key = args.apiKey
     agent_index: str = args.index
     timeout_cmd = args.timeout
-    verify_cert = args.verify
+    verify_cmd = args.verify
+
+    if verify_cmd is not None:
+        if str(verify_cmd).lower() == "false":
+            verify_cert = False
+
 
     if timeout_cmd is not None:
         timeout = int(timeout_cmd)
 
     logger = setup_logger(agent_index)
-
+    logger.info("Agent Started for url %s, verify %s, timeout %s", server_url, verify_cert, timeout)
     # Fallback to environment variables if not provided as arguments
     if server_url is None:
         server_url = os.getenv('server_url')
