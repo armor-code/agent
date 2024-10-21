@@ -185,7 +185,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # Running the request
         # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         # logger.info("expiry %s, %s", expiryTime, timeout)
-        logger.info("Request for task %s with headers % and input_data %s", taskId, headers, input_data)
+        logger.info("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
         logger.info("Response: %d", response.status_code)
