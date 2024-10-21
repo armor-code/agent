@@ -10,6 +10,7 @@ from typing import Optional, Tuple, Any, Dict
 import requests
 import logging
 import time
+from urllib.parse import unquote
 
 
 # Global variables
@@ -185,6 +186,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # Running the request
         # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         # logger.info("expiry %s, %s", expiryTime, timeout)
+        input_data = unquote(input_data)
         logger.info("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
