@@ -209,7 +209,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 with open(output_file, 'a') as f:
                     f.write(data.decode('utf-8', errors='replace'))
         else:
-            logger.info("Status code is not 200 , response is %s", data)
+            logger.info("Status code is not 200 , response is %s", response)
             data = response.content  # Entire response is downloaded if request failed
             with open(output_file, 'a') as f:
                 f.write(data.decode('utf-8', errors='replace'))
