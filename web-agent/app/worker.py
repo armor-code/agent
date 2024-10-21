@@ -193,7 +193,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
         curl_string = curlify.to_curl(response.request)
-        logger.info("Response crul: %d", curl_string)
+        logger.info("Response crul: %s", curl_string)
         logger.info("Response: %d", response.status_code)
 
 
