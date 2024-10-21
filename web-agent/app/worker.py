@@ -13,7 +13,6 @@ import logging
 import time
 from urllib.parse import unquote
 
-
 # Global variables
 letters: str = string.ascii_letters
 rand_string: str = ''.join(random.choice(letters) for _ in range(10))
@@ -44,6 +43,7 @@ def main() -> None:
     parser.add_argument("--index", required=True, help="Agent index no")
     parser.add_argument("--timeout", required=False, help="timeout", default=10)
     parser.add_argument("--verify", required=False, help="Verify Cert", default=True)
+    parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
 
     args = parser.parse_args()
 
@@ -52,16 +52,21 @@ def main() -> None:
     agent_index: str = args.index
     timeout_cmd = args.timeout
     verify_cmd = args.verify
+    debug_cmd = args.debugMode
+
+    debug_mode = True
+    if debug_cmd is not None:
+        if str(debug_cmd).lower() == "false":
+            debug_mode = False
 
     if verify_cmd is not None:
         if str(verify_cmd).lower() == "false":
             verify_cert = False
 
-
     if timeout_cmd is not None:
         timeout = int(timeout_cmd)
 
-    logger = setup_logger(agent_index)
+    logger = setup_logger(agent_index, debug_mode)
     logger.info("Agent Started for url %s, verify %s, timeout %s", server_url, verify_cert, timeout)
     # Fallback to environment variables if not provided as arguments
     if server_url is None:
@@ -188,14 +193,13 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         # logger.info("expiry %s, %s", expiryTime, timeout)
 
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-        logger.info("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
+        logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
+        check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
         curl_string = curlify.to_curl(response.request)
-        logger.info("Response crul: %s", curl_string)
+        logger.debug("Response crul: %s", curl_string)
         logger.info("Response: %d", response.status_code)
-
 
         data: Optional[bytes] = None
         if response.status_code == 200:
@@ -216,7 +220,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 with open(output_file, 'a') as f:
                     f.write(data.decode('utf-8', errors='replace'))
         else:
-            logger.info("Status code is not 200 , response is %s", response)
+            logger.debug("Status code is not 200 , response is %s", response.content)
             data = response.content  # Entire response is downloaded if request failed
             with open(output_file, 'a') as f:
                 f.write(data.decode('utf-8', errors='replace'))
@@ -247,6 +251,11 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         task['output'] = f"Error: {str(e)}"
 
     return task
+
+
+def check_and_update_encode_url(headers, url: str):
+    if headers["Content-Type"] is None and "/cxrestapi/auth/identity/connect/token" in url:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
 
 
 def _update_task_with_response(task: Dict[str, Any], response: requests.Response,
@@ -315,7 +324,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
 
 # Function to set up logging with timed rotation and log retention
-def setup_logger(index: str) -> logging.Logger:
+def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
     log_filename: str = os.path.join("/tmp/log", f"app_log{index}.log")
 
     # Create a TimedRotatingFileHandler
@@ -332,7 +341,10 @@ def setup_logger(index: str) -> logging.Logger:
 
     # Create the logger instance
     logger: logging.Logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)  # Set the log level (DEBUG, INFO, etc.)
+    if debug_mode:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)  # Set the log level (DEBUG, INFO, etc.)
 
     logger.addHandler(handler)
 
