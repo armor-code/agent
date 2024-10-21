@@ -7,6 +7,7 @@ import uuid
 from logging.handlers import TimedRotatingFileHandler
 from typing import Optional, Tuple, Any, Dict
 
+import curlify as curlify
 import requests
 import logging
 import time
@@ -186,11 +187,15 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # Running the request
         # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         # logger.info("expiry %s, %s", expiryTime, timeout)
-        input_data = unquote(input_data)
+
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
         logger.info("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
+        curl_string = curlify.to_curl(response.request)
+        logger.info("Response crul: %d", curl_string)
         logger.info("Response: %d", response.status_code)
+
 
         data: Optional[bytes] = None
         if response.status_code == 200:
