@@ -7,7 +7,6 @@ import uuid
 from logging.handlers import TimedRotatingFileHandler
 from typing import Optional, Tuple, Any, Dict
 
-import curlify as curlify
 import requests
 import logging
 import time
@@ -197,8 +196,6 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
-        curl_string = curlify.to_curl(response.request)
-        logger.debug("Response crul: %s", curl_string)
         logger.info("Response: %d", response.status_code)
 
         data: Optional[bytes] = None
