@@ -197,8 +197,9 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert)
         logger.info("Response: %d", response.status_code)
+        response.encoding = 'utf-8-sig'
 
-        data: Optional[bytes] = None
+        data: Any = None
         if response.status_code == 200:
             # Check if the response is chunked
             is_chunked: bool = response.headers.get('Transfer-Encoding', None) == 'chunked'
@@ -209,18 +210,18 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 for chunk in response.iter_content(chunk_size=1024 * 10):
                     if chunk:
                         with open(output_file, 'a') as f:
-                            decoded_data = chunk.decode('utf-8', errors='replace')
+                            decoded_data = chunk.decode('utf-8-sig', errors='replace')
                             f.write(decoded_data)
             else:
                 logger.info("Non-chunked response, processing whole payload...")
-                data = response.content  # Entire response is downloaded
+                data = response.text  # Entire response is downloaded
                 with open(output_file, 'a') as f:
-                    f.write(data.decode('utf-8', errors='replace'))
+                    f.write(data)
         else:
             logger.debug("Status code is not 200 , response is %s", response.content)
-            data = response.content  # Entire response is downloaded if request failed
+            data = response.text  # Entire response is downloaded if request failed
             with open(output_file, 'a') as f:
-                f.write(data.decode('utf-8', errors='replace'))
+                f.write(data)
 
         s3_signed_get_url: Optional[str] = None
 
@@ -260,7 +261,7 @@ def _update_task_with_response(task: Dict[str, Any], response: requests.Response
     task['responseHeaders'] = dict(response.headers)
     task['statusCode'] = response.status_code
     if s3_signed_get_url is None:  # check if needs to send data or fileURL
-        with open(output_file, 'r', encoding='utf-8', errors='replace') as file:
+        with open(output_file, 'r') as file:
             task['output'] = file.read()
     else:
         task['s3Url'] = s3_signed_get_url
