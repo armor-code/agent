@@ -15,6 +15,7 @@ from urllib.parse import unquote
 # Global variables
 letters: str = string.ascii_letters
 rand_string: str = ''.join(random.choice(letters) for _ in range(10))
+armorcode_folder: str = '/tmp/armorcode'
 log_folder: str = '/tmp/armorcode/log'
 output_file_folder: str = '/tmp/armorcode/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
@@ -357,6 +358,7 @@ def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
 
 
 if __name__ == "__main__":
+    _createFolder(armorcode_folder)  # create parent level folder for logs anf files
     _createFolder(log_folder)  # create folder to store log files
     _createFolder(output_file_folder)  # create folder to store output files
     main()
