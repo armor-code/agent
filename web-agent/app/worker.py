@@ -15,8 +15,8 @@ from urllib.parse import unquote
 # Global variables
 letters: str = string.ascii_letters
 rand_string: str = ''.join(random.choice(letters) for _ in range(10))
-log_folder: str = '/tmp/log'
-output_file_folder: str = '/tmp/output_files'
+log_folder: str = '/tmp/armorcode/log'
+output_file_folder: str = '/tmp/armorcode/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 
 max_file_size: int = 1024 * 100  # max_size data that would be sent in payload, more than that will send via s3
@@ -64,6 +64,13 @@ def main() -> None:
 
     if timeout_cmd is not None:
         timeout = int(timeout_cmd)
+
+    if os.getenv('verify') is not None:
+        if str(os.getenv('verify')).lower() == "false":
+            verify_cert = False
+
+    if os.getenv("timeout") is not None:
+        timeout = int(os.getenv("timeout"))
 
     logger = setup_logger(agent_index, debug_mode)
     logger.info("Agent Started for url %s, verify %s, timeout %s", server_url, verify_cert, timeout)
@@ -323,7 +330,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
 # Function to set up logging with timed rotation and log retention
 def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
-    log_filename: str = os.path.join("/tmp/log", f"app_log{index}.log")
+    log_filename: str = os.path.join("/tmp/armorcode/log", f"app_log{index}.log")
 
     # Create a TimedRotatingFileHandler
     handler: TimedRotatingFileHandler = TimedRotatingFileHandler(

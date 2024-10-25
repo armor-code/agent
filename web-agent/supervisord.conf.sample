@@ -7,8 +7,8 @@ user=root
 autostart=true
 autorestart=true
 restart_delay=5
-stdout_logfile=/temp/agent_1.log
-stderr_logfile=/temp/agent_1-error.log
+stdout_logfile=/tmp/armorcode/agent_1.log
+stderr_logfile=/tmp/armorcode/agent_1-error.log
 
 [program:AGENT_2]
 command=/usr/src/venv/bin/python3 /usr/src/app/worker.py --index 2
@@ -16,5 +16,5 @@ user=root
 autostart=true
 autorestart=true
 restart_delay=5
-stdout_logfile=/temp/agent_2.log
-stderr_logfile=/temp/agent_2-error.log
+stdout_logfile=/tmp/armorcode/agent_2.log
+stderr_logfile=/tmp/armorcode/agent_2-error.log
