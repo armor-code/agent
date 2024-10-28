@@ -2,7 +2,7 @@
 Steps for customer
 1. install requirements: wget -O requirements.txt 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/ENG-56930/web-agent/requirements.txt'; pip3 install -r requirements. txt
 2. Download the script: wget -O worker.py 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/ENG-56930/web-agent/app/worker.py'
-3. Run command: python3 worker.py --serverUrl 'https://app.armorcode.com/' --apiKey <apiKey> --index 0 --timeout 25 --verify False
+3. Run command: python3 worker.py --serverUrl 'https://app.armorcode.com/' --apiKey `<apiKey>` --index 0 --timeout 25 --verify False
 4. Check logs: cd /tmp/armorcode/log ; tail -F *
 
 
