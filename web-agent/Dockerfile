@@ -18,7 +18,7 @@ RUN apk update && \
 
 RUN mkdir -p /etc/supervisor/conf.d/
 
-RUN mkdir -p /temp/
+RUN mkdir -p /tmp/armorcode/
 
 
 
