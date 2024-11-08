@@ -34,5 +34,7 @@ docker pull armorcode/armorcode-web-agent
 ```commandline
 docker run -d -e server_url='<server_url>' -e api_key='<api_key>'  -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent
 ```
-6. If you don't want to do certificates validations (needed in case if VM don't have any certs assigned and making https request) pass env variable
-    ``-e verify=False`` 
+6. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass env variable
+```commandline
+docker run -d -e server_url='<server_url>' -e api_key='<api_key>' -e verify=False  -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent
+```
