@@ -24,6 +24,10 @@ Steps for customer
 This is a docker image which can run on any OS supporting docker containers.
 
 1. Generate apiKey from Armorcode Platform
+2. Download the latest Agent Image
+```commandline
+docker pull armorcode/armorcode-web-agent
+```
 3. Get Server Url of the Armorcode
 4. Create a folder/volume to store Api logs 
 5. Run the docker Image as 
