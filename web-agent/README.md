@@ -13,7 +13,13 @@ Steps for customer
    ```commandline
    python3 worker.py --serverUrl 'https://app.armorcode.com/' --apiKey `<apiKey>` --index 0 --timeout 25 --verify False
     ```
-4. Check logs: 
+4. If it is required to use proxy configs for http and https calls, you can set env variable as (if this is not configured already)
+   ```commandline
+   export HTTP_PROXY="<your_http_proxy_value>"
+   export HTTPS_PROXY="<your_https_proxy_value>"
+   ```
+
+5. Check logs: 
     ```commandline
     cd /tmp/armorcode/log ; tail -F *
    ```
@@ -37,4 +43,8 @@ docker run -d -e server_url='<server_url>' -e api_key='<api_key>'  -v <folder/vo
 6. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass env variable
 ```commandline
 docker run -d -e server_url='<server_url>' -e api_key='<api_key>' -e verify=False  -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent
+```
+7. If you have HTTP/HTTPS proxy configs enabled in the VM, those configs should be passed to docker container via env variables . ex ##
+```commandline
+docker run -d -e server_url='<server_url>' -e api_key='<api_key>' -e verify=False -e HTTP_PROXY=<http_proxy_url>  -e HTTPS_PROXY=<https_proxy_url>  -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent
 ```
