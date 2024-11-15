@@ -74,12 +74,14 @@ def main() -> None:
         timeout = int(os.getenv("timeout"))
 
     logger = setup_logger(agent_index, debug_mode)
-    logger.info("Agent Started for url %s, verify %s, timeout %s", server_url, verify_cert, timeout)
+
     # Fallback to environment variables if not provided as arguments
     if server_url is None:
         server_url = os.getenv('server_url')
     if api_key is None:
         api_key = os.getenv("api_key")
+
+    logger.info("Agent Started for url %s, verify %s, timeout %s", server_url, verify_cert, timeout)
 
     if server_url is None or api_key is None:
         logger.error("Empty serverUrl or api Key %s", server_url)
@@ -163,7 +165,7 @@ def update_task(task: Dict[str, Any], count: int = 0) -> None:
         if update_task_response.status_code == 200:
             logger.info("Task %s updated successfully. Response: %s", task['taskId'],
                         update_task_response.text)
-        elif update_task_response.status_code == 429:
+        elif update_task_response.status_code == 429 or update_task_response.status_code == 504:
             time.sleep(2)
             logger.warning("Rate limit hit while updating the task output, retrying again for task %s", task['taskId'])
             count = count + 1
@@ -301,7 +303,6 @@ def _createFolder(folder_path: str) -> None:
             print("Created output directory: %s", folder_path)
         except Exception as e:
             print("Error creating output folder: %s", e)
-            raise
     else:
         print("Output directory already exists: %s", folder_path)
 
