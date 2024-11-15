@@ -4,6 +4,7 @@ import os
 import random
 import string
 import uuid
+from collections import deque
 from logging.handlers import TimedRotatingFileHandler
 from typing import Optional, Tuple, Any, Dict
 
@@ -33,9 +34,12 @@ min_backoff_time: int = 5
 
 timeout: int = 10
 
+# throttling to 25 requests per seconds to avoid rate limit errors
+rate_limiter = None
+
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -93,6 +97,9 @@ def main() -> None:
     # pool.submit(process)
     #
     # pool.shutdown(wait=True)
+
+    # Instantiate RateLimiter for 25 requests per 15 seconds window
+    rate_limiter = RateLimiter(request_limit=25, time_window=15)
     process()
 
 
@@ -103,6 +110,7 @@ def process() -> None:
         try:
             # Get the next task for the agent
             logger.info("Requesting task...")
+            rate_limiter.throttle()
             get_task_response: requests.Response = requests.get(
                 f"{server_url}/api/http-teleport/get-task",
                 headers=headers,
@@ -155,6 +163,7 @@ def update_task(task: Dict[str, Any], count: int = 0) -> None:
         logger.error("Retry count exceeds for task %s", task['taskId'])
         return
     try:
+        rate_limiter.throttle()
         update_task_response: requests.Response = requests.post(
             f"{server_url}/api/http-teleport/put-result",
             headers=_get_headers(),
@@ -277,6 +286,30 @@ def _update_task_with_response(task: Dict[str, Any], response: requests.Response
         task['s3Url'] = s3_signed_get_url
 
 
+class RateLimiter:
+    def __init__(self, request_limit: int, time_window: int) -> None:
+        self.request_limit = request_limit
+        self.time_window = time_window
+        self.timestamps = deque()
+
+    def allow_request(self) -> bool:
+
+        current_time = time.time()
+
+        # Remove timestamps older than the time window
+        while self.timestamps and self.timestamps[0] < current_time - self.time_window:
+            self.timestamps.popleft()
+
+        # Check if we can send a new request
+        if len(self.timestamps) < self.request_limit:
+            self.timestamps.append(current_time)
+            return True
+        return False
+
+    def throttle(self) -> None:
+        while not self.allow_request():
+            time.sleep(0.5)
+
 def upload_s3(preSignedUrl: str) -> bool:
     try:
         with open(output_file, 'r') as file:
@@ -310,6 +343,7 @@ def _createFolder(folder_path: str) -> None:
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
     params: Dict[str, str] = {'fileName': f"{taskId}{uuid.uuid4().hex}.txt"}
     try:
+        rate_limiter.throttle()
         get_s3_url: requests.Response = requests.get(
             f"{server_url}/api/http-teleport/upload-url",
             params=params,
