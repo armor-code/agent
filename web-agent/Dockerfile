@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM alpine:edge
+FROM alpine:latest
 
 # Set the working directory in the container
 WORKDIR /usr/src
