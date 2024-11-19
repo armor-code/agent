@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import random
+import secrets
 import string
 import uuid
 from collections import deque
@@ -15,7 +15,7 @@ from urllib.parse import unquote
 
 # Global variables
 letters: str = string.ascii_letters
-rand_string: str = ''.join(random.choice(letters) for _ in range(10))
+rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 armorcode_folder: str = '/tmp/armorcode'
 log_folder: str = '/tmp/armorcode/log'
 output_file_folder: str = '/tmp/armorcode/output_files'
@@ -146,7 +146,7 @@ def process() -> None:
             logger.error("Network error: %s", e)
             time.sleep(10)  # Wait longer on network errors
         except Exception as e:
-            logger.error("Unexpected error while processing: %s", e, exc_info=True)
+            logger.error("Unexpected error while processing: %s", e)
             time.sleep(5)
         finally:
             # Remove the output generated file
@@ -184,7 +184,7 @@ def update_task(task: Dict[str, Any], count: int = 0) -> None:
 
 
     except requests.exceptions.RequestException as e:
-        logger.error("Network error processing task %s: %s", task['taskId'], e, exc_info=True)
+        logger.error("Network error processing task %s: %s", task['taskId'], e)
         count = count + 1
         update_task(task, count)
 
@@ -264,7 +264,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         logger.error("Network error processing task %s: %s", taskId, e)
         task['output'] = f"Network error: {str(e)}"
     except Exception as e:
-        logger.error("Unexpected error processing task %s: %s", taskId, e, exc_info=True)
+        logger.error("Unexpected error processing task %s: %s", taskId, e)
         task['output'] = f"Error: {str(e)}"
 
     return task
