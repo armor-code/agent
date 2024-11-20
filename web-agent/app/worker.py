@@ -335,7 +335,7 @@ def _createFolder(folder_path: str) -> None:
             os.mkdir(folder_path)  # Create the directory if it doesn't exist
             print("Created output directory: %s", folder_path)
         except Exception as e:
-            print("Error creating output folder: %s", e)
+            print("Error creating output folder: %s", folder_path)
     else:
         print("Output directory already exists: %s", folder_path)
 
