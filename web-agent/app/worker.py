@@ -34,7 +34,7 @@ min_backoff_time: int = 5
 
 timeout: int = 10
 
-outgoing_proxy = None
+outgoing_proxy = None # this is with respect to client. proxy for calls going out of customer environment. ( to armorcode).
 inward_proxy = None
 
 # throttling to 25 requests per seconds to avoid rate limit errors
