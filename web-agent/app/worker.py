@@ -34,8 +34,8 @@ min_backoff_time: int = 5
 
 timeout: int = 10
 
-outgoing_proxy = {}
-inward_proxy = {}
+outgoing_proxy = None
+inward_proxy = None
 
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
@@ -118,7 +118,7 @@ def main() -> None:
     if api_key is None:
         api_key = os.getenv("api_key")
 
-    logger.info("Agent Started for url %s, verify %s, timeout %s", server_url, verify_cert, timeout)
+    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s", server_url, verify_cert, timeout, outgoing_proxy, inward_proxy)
 
     if server_url is None or api_key is None:
         logger.error("Empty serverUrl or api Key %s", server_url)
@@ -144,10 +144,13 @@ def process() -> None:
             # Get the next task for the agent
             logger.info("Requesting task...")
             rate_limiter.throttle()
+
             get_task_response: requests.Response = requests.get(
                 f"{server_url}/api/http-teleport/get-task",
                 headers=headers,
-                timeout=25, verify=verify_cert, proxies=outgoing_proxy)
+                timeout=25, verify=verify_cert,
+                proxies=outgoing_proxy
+            )
 
             if get_task_response.status_code == 200:
                 thread_backoff_time = min_backoff_time
