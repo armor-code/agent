@@ -34,12 +34,15 @@ min_backoff_time: int = 5
 
 timeout: int = 10
 
+outgoing_proxy = {}
+inward_proxy = {}
+
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
 
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -49,6 +52,12 @@ def main() -> None:
     parser.add_argument("--verify", required=False, help="Verify Cert", default=True)
     parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
 
+    parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
+    parser.add_argument("--inwardProxyHttp", required=False, help="Pass inward Http proxy", default=None)
+
+    parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
+    parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
+
     args = parser.parse_args()
 
     server_url = args.serverUrl
@@ -57,6 +66,30 @@ def main() -> None:
     timeout_cmd = args.timeout
     verify_cmd = args.verify
     debug_cmd = args.debugMode
+
+    inward_proxy_https = args.inwardProxyHttps
+    inward_proxy_http = args.inwardProxyHttp
+
+    outgoing_proxy_https = args.outgoingProxyHttps
+    outgoing_proxy_http = args.outgoingProxyHttp
+
+    if inward_proxy_https is None and inward_proxy_http is None:
+        inward_proxy = None
+    else:
+        inward_proxy = {}
+        if inward_proxy_https is not None:
+            inward_proxy['https'] = inward_proxy_https
+        if inward_proxy_http is not None:
+            inward_proxy['http'] = inward_proxy_http
+
+    if outgoing_proxy_https is None and outgoing_proxy_http is None:
+        outgoing_proxy = None
+    else:
+        outgoing_proxy = {}
+        if outgoing_proxy_https is not None:
+            outgoing_proxy['https'] = outgoing_proxy_https
+        if outgoing_proxy_http is not None:
+            outgoing_proxy['http'] = outgoing_proxy_http
 
     debug_mode = True
     if debug_cmd is not None:
@@ -114,7 +147,7 @@ def process() -> None:
             get_task_response: requests.Response = requests.get(
                 f"{server_url}/api/http-teleport/get-task",
                 headers=headers,
-                timeout=25, verify=verify_cert)
+                timeout=25, verify=verify_cert, proxies=outgoing_proxy)
 
             if get_task_response.status_code == 200:
                 thread_backoff_time = min_backoff_time
@@ -168,7 +201,7 @@ def update_task(task: Dict[str, Any], count: int = 0) -> None:
             f"{server_url}/api/http-teleport/put-result",
             headers=_get_headers(),
             json=task,
-            timeout=30, verify=verify_cert
+            timeout=30, verify=verify_cert, proxies=outgoing_proxy
         )
 
         if update_task_response.status_code == 200:
@@ -214,7 +247,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=timeout, verify=verify_cert)
+                                                       timeout=timeout, verify=verify_cert, proxies=inward_proxy)
         logger.info("Response: %d", response.status_code)
         response.encoding = 'utf-8-sig'
 
@@ -310,6 +343,7 @@ class RateLimiter:
         while not self.allow_request():
             time.sleep(0.5)
 
+
 def upload_s3(preSignedUrl: str) -> bool:
     try:
         with open(output_file, 'r') as file:
@@ -317,7 +351,7 @@ def upload_s3(preSignedUrl: str) -> bool:
                 "Content-Type": "application/json;charset=utf-8"
             }
             data: bytes = file.read().encode('utf-8', errors='replace')
-            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=verify_cert)
+            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=verify_cert, proxies=outgoing_proxy)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -348,7 +382,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
             f"{server_url}/api/http-teleport/upload-url",
             params=params,
             headers=_get_headers(),
-            timeout=25, verify=verify_cert
+            timeout=25, verify=verify_cert, proxies=outgoing_proxy
         )
         get_s3_url.raise_for_status()
 
