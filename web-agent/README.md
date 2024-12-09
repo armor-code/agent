@@ -11,7 +11,7 @@ Steps for customer
 
 3. Run command: 
    ```commandline
-   python3 worker.py --serverUrl 'https://app.armorcode.com/' --apiKey `<apiKey>` --index 0 --timeout 25 --verify False
+   python3 worker.py --serverUrl 'https://app.armorcode.com' --apiKey `<apiKey>` --index 0 --timeout 25 --verify False
     ```
 4. If it is required to use proxy configs for http and https calls, you can set env variable as (if this is not configured already)
    ```commandline
