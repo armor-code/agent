@@ -1,3 +1,27 @@
+## How it works
+
+```mermaid
+sequenceDiagram
+  box rgba(33, 66, 00, 0.1) "ArmorCode"
+    participant AC
+    participant Server
+  end
+  box rgba(00, 00, 00, 0.1) "Customer"
+    participant Agent
+    participant Service (e.g. JIRA)
+  end
+
+    Agent-->>Server: Poll for message (HTTPS call)
+    AC->>Server: Send message
+    AC-->>Server: Poll for response
+    Agent->>Server: Retrieve message (HTTPS call)
+    Agent->>Service (e.g. JIRA): Call Service
+    Service (e.g. JIRA)-->>Agent: Service response
+    Agent->>Server: Send response (HTTPS call)
+    AC->>Server: Retrieve response
+```
+
+
 ## Setting up the Agent just using the Agent Script (preferred)
 Steps for customer
 1. install requirements:  
