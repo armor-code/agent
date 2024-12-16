@@ -118,6 +118,33 @@ def main() -> None:
     if api_key is None:
         api_key = os.getenv("api_key")
 
+    if outgoing_proxy is None:
+        outgoing_proxy_https = os.getenv('outgoingProxyHttps')
+        outgoing_proxy_http = os.getenv('outgoingProxyHttp')
+        if outgoing_proxy_https is None and outgoing_proxy_http is None:
+            outgoing_proxy = None
+        else:
+            outgoing_proxy = {}
+        if outgoing_proxy_https is not None:
+            outgoing_proxy['https'] = outgoing_proxy_https
+        if outgoing_proxy_http is not None:
+            outgoing_proxy['http'] = outgoing_proxy_http
+
+    if inward_proxy is None:
+        inward_proxy_https = os.getenv('inwardProxyHttps')
+        inward_proxy_http = os.getenv('inwardProxyHttp')
+        if inward_proxy_https is None and inward_proxy_http is None:
+            inward_proxy = None
+        else:
+            inward_proxy = {}
+        if inward_proxy_https is not None:
+            inward_proxy['https'] = inward_proxy_https
+        if inward_proxy is not None:
+            inward_proxy['http'] = inward_proxy_http
+
+
+
+
     logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s", server_url, verify_cert, timeout, outgoing_proxy, inward_proxy)
 
     if server_url is None or api_key is None:
