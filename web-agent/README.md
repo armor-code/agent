@@ -5,6 +5,7 @@ sequenceDiagram
   box rgba(33, 66, 00, 0.1) "ArmorCode"
     participant AC
     participant Server
+    participant S3-Bucket
   end
   box rgba(00, 00, 00, 0.1) "Customer"
     participant Agent
@@ -17,7 +18,12 @@ sequenceDiagram
     Agent->>Server: Retrieve message (HTTPS call)
     Agent->>Service (e.g. JIRA): Call Service
     Service (e.g. JIRA)-->>Agent: Service response
-    Agent->>Server: Send response (HTTPS call)
+
+    Agent->>Server: Get S3 Upload URL
+    Server-->>Agent: S3 signed URL with 10 minute validity
+    Agent->>S3-Bucket: Upload response file using S3 signed URL
+
+    Agent-->>Server: Send response (HTTPS call)
     AC->>Server: Retrieve response
 ```
 
