@@ -1,4 +1,25 @@
-## How it works
+The purpose of this agent is to allow API invocation from ArmorCode to customer's on-prem service.
+
+The architecture enables controlled, secure message exchange between the Agent, the ArmorCode platform, and customer's on-prem services. The interactions occur through secure authenticated channels.
+
+## Authentication/Security Aspects:
+
+a) The Agent is a short and simple open-source python script created by ArmorCode.
+b) It communicates with Server using HTTPS. Agent authenticates with Server using API-key, generated out-of-band by customer from ArmorCode platform.
+c) Agent to on-prem Service (e.g. JIRA, Coverity, etc) is over HTTPS
+d) Agent communication with AWS S3 web-service is over HTTPS using pre-signed URL (received from Server) with validity of 10 minutes. The S3 bucket is a private bucket hosted in ArmorCode account.
+
+## How It Works (Step-by-Step):
+
+a) Message Retrieval: The Agent polls the Server over HTTPS. The Server checks authentication tokens and retrieves queued instructions from ArmorCode service. Once authenticated, the Agent receives the message intended for it.
+
+b) Service Call: The Agent unpacks the response from server to get the API details (URL, HTTP Method e.g. GET/POST, headers, payload) and makes the call to the on-prem service.
+
+c) Uploading Results: The Agent checks the response size received from on-prem service.
+    - If the response is > than 100KB, it makes a call to server to get a temporary pre-signed S3 URL (HTTPS with validity of 10 minutes) to upload the file. Agent then uploads the file to via S3 URL.
+    - If the response is <= than 100KB, it makes a call to server with the payload.
+
+d) Response Delivery: The Agent sends a confirmation and reference to the uploaded data back to the Server over HTTPS. AC later retrieves the processed response from the Server. At each step, time-bound tokens, encryption in transit, and restricted privileges keep the system secure.
 
 ```mermaid
 sequenceDiagram
