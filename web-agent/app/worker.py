@@ -40,9 +40,11 @@ inward_proxy = None
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
 
+upload_to_ac = False
+
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -57,6 +59,7 @@ def main() -> None:
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
+    parser.add_argument("--uploadToAc", action="store_true", help="Upload to Armorcode instead of s3 (default: False)", default=False)
 
     args = parser.parse_args()
 
@@ -66,6 +69,7 @@ def main() -> None:
     timeout_cmd = args.timeout
     verify_cmd = args.verify
     debug_cmd = args.debugMode
+    upload_to_ac = args.uploadToAc
 
     inward_proxy_https = args.inwardProxyHttps
     inward_proxy_http = args.inwardProxyHttp
@@ -284,11 +288,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("file size %s", file_size)
         is_s3_upload: bool = file_size > max_file_size  # if size is greater than max_size, upload data to s3
         if is_s3_upload:
-            s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
-            if s3_upload_url is None:
-                logger.warning("Failed to get S3 upload URL for URL %s", url)
-            else:
-                upload_success = upload_s3(s3_upload_url)
+            s3_signed_get_url = upload_response()
 
         # update task with the output
         _update_task_with_response(task, response, s3_signed_get_url)
@@ -304,6 +304,43 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         task['output'] = f"Error: {str(e)}"
 
     return task
+
+
+def upload_response(taskId: str, url: str):
+    if upload_to_ac:
+        try:
+            rate_limiter.throttle()
+            headers: Dict[str, str] = {
+                "Authorization": f"Bearer {api_key}",
+            }
+            files = {
+                # 'fileFieldName' is the name of the form field expected by the server
+                "file": (f"{taskId}_{uuid.uuid4().hex}.txt", open(output_file, "rb"), "text/plain")
+                # If you have multiple files, you can add them here as more entries
+            }
+            upload_result: requests.Response = requests.post(
+                f"{server_url}/api/http-teleport/upload-result/{taskId}",
+                headers=headers,
+                timeout=50, verify=verify_cert, proxies=outgoing_proxy, files=files
+                
+            )
+            upload_result.raise_for_status()
+
+            data: Optional[Dict[str, str]] = upload_result.json().get('data', None)
+            if data is not None:
+                return data.get('getUrl')
+            logger.warning("No data returned when uploading the data to s3")
+            return None
+        except Exception as e:
+            logger.error("Unable to upload file to armorcode: %s", e)
+            raise e
+    else:
+        s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
+        if s3_upload_url is None:
+            logger.warning("Failed to get S3 upload URL for URL %s", url)
+        else:
+            upload_success = upload_s3(s3_upload_url)
+        return s3_signed_get_url
 
 
 def check_and_update_encode_url(headers, url: str):
