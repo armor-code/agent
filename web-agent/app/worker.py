@@ -301,11 +301,12 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         return upload_response(taskId, task)
     except requests.exceptions.RequestException as e:
         logger.error("Network error processing task %s: %s", taskId, e)
+        task['statusCode'] = 500
         task['output'] = f"Network error: {str(e)}"
     except Exception as e:
         logger.error("Unexpected error processing task %s: %s", taskId, e)
+        task['statusCode'] = 500
         task['output'] = f"Error: {str(e)}"
-
     return task
 
 
@@ -342,7 +343,7 @@ def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any
                 task['output'] = s3_signed_get_url
                 logger.info("Data uploaded to S3 successfully")
                 return task
-        
+
         task['status'] = 500
         task['output'] = "Error: failed to upload result to s3"
         return task
