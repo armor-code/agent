@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os
 import secrets
 import string
@@ -197,7 +198,9 @@ def process() -> None:
                     logger.error("Error removing output file: %s", e)
 
 
-def update_task(task: Dict[str, Any], count: int = 0) -> None:
+def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
+    if task is None:
+        return
     # Update the task status
     if count > max_retry:
         logger.error("Retry count exceeds for task %s", task['taskId'])
@@ -282,20 +285,20 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
             with open(output_file, 'a') as f:
                 f.write(data)
 
-        s3_signed_get_url: Optional[str] = None
+        task['responseHeaders'] = dict(response.headers)
+        task['statusCode'] = response.status_code
 
         file_size: int = os.path.getsize(output_file)
         logger.info("file size %s", file_size)
         is_s3_upload: bool = file_size > max_file_size  # if size is greater than max_size, upload data to s3
-        if is_s3_upload:
-            s3_signed_get_url = upload_response()
 
-        # update task with the output
-        _update_task_with_response(task, response, s3_signed_get_url)
+        if not is_s3_upload:
+            logger.info("Data is less than %s, sending data in response", max_file_size)
+            with open(output_file, 'r') as file:
+                task['output'] = file.read()
+            return task
 
-        logger.info("Task %s processed successfully.", taskId)
-        return task
-
+        return upload_response(taskId, task)
     except requests.exceptions.RequestException as e:
         logger.error("Network error processing task %s: %s", taskId, e)
         task['output'] = f"Network error: {str(e)}"
@@ -306,57 +309,48 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     return task
 
 
-def upload_response(taskId: str, url: str):
+def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if upload_to_ac:
         try:
             rate_limiter.throttle()
             headers: Dict[str, str] = {
                 "Authorization": f"Bearer {api_key}",
             }
+            task_json = json.dumps(task)
             files = {
                 # 'fileFieldName' is the name of the form field expected by the server
-                "file": (f"{taskId}_{uuid.uuid4().hex}.txt", open(output_file, "rb"), "text/plain")
+                "file": (f"{taskId}_{uuid.uuid4().hex}.txt", open(output_file, "rb"), "text/plain"),
+                "task": (None, task_json, "application/json")
                 # If you have multiple files, you can add them here as more entries
             }
             upload_result: requests.Response = requests.post(
-                f"{server_url}/api/http-teleport/upload-result/{taskId}",
+                f"{server_url}/api/http-teleport/upload-result",
                 headers=headers,
-                timeout=50, verify=verify_cert, proxies=outgoing_proxy, files=files
-                
+                timeout=300, verify=verify_cert, proxies=outgoing_proxy, files=files
             )
+            logger.info("Upload result response: %s, code: %d", upload_result.text, upload_result.status_code)
             upload_result.raise_for_status()
-
-            data: Optional[Dict[str, str]] = upload_result.json().get('data', None)
-            if data is not None:
-                return data.get('getUrl')
-            logger.warning("No data returned when uploading the data to s3")
             return None
         except Exception as e:
             logger.error("Unable to upload file to armorcode: %s", e)
             raise e
     else:
         s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
-        if s3_upload_url is None:
-            logger.warning("Failed to get S3 upload URL for URL %s", url)
-        else:
+        if s3_upload_url is not None:
             upload_success = upload_s3(s3_upload_url)
-        return s3_signed_get_url
+            if upload_success:
+                task['output'] = s3_signed_get_url
+                logger.info("Data uploaded to S3 successfully")
+                return task
+        
+        task['status'] = 500
+        task['output'] = "Error: failed to upload result to s3"
+        return task
 
 
 def check_and_update_encode_url(headers, url: str):
     if "/cxrestapi/auth/identity/connect/token" in url:
         headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-
-def _update_task_with_response(task: Dict[str, Any], response: requests.Response,
-                               s3_signed_get_url: Optional[str]) -> None:
-    task['responseHeaders'] = dict(response.headers)
-    task['statusCode'] = response.status_code
-    if s3_signed_get_url is None:  # check if needs to send data or fileURL
-        with open(output_file, 'r') as file:
-            task['output'] = file.read()
-    else:
-        task['s3Url'] = s3_signed_get_url
 
 
 class RateLimiter:
