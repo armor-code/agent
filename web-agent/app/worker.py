@@ -12,6 +12,7 @@ from typing import Optional, Tuple, Any, Dict
 import requests
 import logging
 import time
+import zipfile
 from urllib.parse import unquote
 
 # Global variables
@@ -21,8 +22,9 @@ armorcode_folder: str = '/tmp/armorcode'
 log_folder: str = '/tmp/armorcode/log'
 output_file_folder: str = '/tmp/armorcode/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
+output_file_zip: str = f"{output_file_folder}/large_output_file{rand_string}.zip"
 
-max_file_size: int = 1024 * 100  # max_size data that would be sent in payload, more than that will send via s3
+max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
@@ -196,6 +198,12 @@ def process() -> None:
                     os.remove(output_file)
                 except OSError as e:
                     logger.error("Error removing output file: %s", e)
+            # Remove the output generated file
+            if os.path.exists(output_file_zip):
+                try:
+                    os.remove(output_file_zip)
+                except OSError as e:
+                    logger.error("Error removing output file: %s", e)
 
 
 def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
@@ -310,20 +318,33 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     return task
 
 
+def zip_response(input_file: str, output_file: str) -> bool:
+    try:
+        with zipfile.ZipFile(output_file, 'w') as zipf:
+            zipf.write(input_file)
+        return True
+    except Exception as e:
+        logger.error("Unable to zip file: %s", e)
+        return False
+
 def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if upload_to_ac:
         try:
-            rate_limiter.throttle()
+            success = zip_response(output_file, output_file_zip)
+            file_path = output_file_zip if success else output_file
+            task['responseZipped'] = success
+            file_name = f"{taskId}_{uuid.uuid4().hex}.{'zip' if success else 'txt'}"
             headers: Dict[str, str] = {
                 "Authorization": f"Bearer {api_key}",
             }
             task_json = json.dumps(task)
             files = {
                 # 'fileFieldName' is the name of the form field expected by the server
-                "file": (f"{taskId}_{uuid.uuid4().hex}.txt", open(output_file, "rb"), "text/plain"),
+                "file": (file_name, open(file_path, "rb"), f"{'application/zip' if success else 'text/plain'}"),
                 "task": (None, task_json, "application/json")
                 # If you have multiple files, you can add them here as more entries
             }
+            rate_limiter.throttle()
             upload_result: requests.Response = requests.post(
                 f"{server_url}/api/http-teleport/upload-result",
                 headers=headers,
