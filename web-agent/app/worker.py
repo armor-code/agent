@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import secrets
+import shutil
 import string
 import uuid
 from collections import deque
@@ -12,7 +13,7 @@ from typing import Optional, Tuple, Any, Dict
 import requests
 import logging
 import time
-import zipfile
+import gzip
 from urllib.parse import unquote
 
 # Global variables
@@ -320,12 +321,15 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
 def zip_response(input_file: str, output_file: str) -> bool:
     try:
-        with zipfile.ZipFile(output_file, 'w') as zipf:
-            zipf.write(input_file)
+        with open(input_file, 'rb') as f_in:  
+            with gzip.open(output_file, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
         return True
     except Exception as e:
         logger.error("Unable to zip file: %s", e)
         return False
+
 
 def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if upload_to_ac:
