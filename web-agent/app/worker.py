@@ -25,7 +25,7 @@ output_file_folder: str = '/tmp/armorcode/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 output_file_zip: str = f"{output_file_folder}/large_output_file{rand_string}.zip"
 
-max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
+max_file_size: int = 1024 * 1  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
@@ -268,7 +268,6 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert, proxies=inward_proxy)
         logger.info("Response: %d", response.status_code)
-        response.encoding = 'utf-8-sig'
 
         data: Any = None
         if response.status_code == 200:
@@ -280,18 +279,17 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 # Process the response in chunks
                 for chunk in response.iter_content(chunk_size=1024 * 10):
                     if chunk:
-                        with open(output_file, 'a') as f:
-                            decoded_data = chunk.decode('utf-8-sig', errors='replace')
-                            f.write(decoded_data)
+                        with open(output_file, 'ab') as f:
+                            f.write(chunk)
             else:
                 logger.info("Non-chunked response, processing whole payload...")
-                data = response.text  # Entire response is downloaded
-                with open(output_file, 'a') as f:
+                data = response.content  # Entire response is downloaded
+                with open(output_file, 'ab') as f:
                     f.write(data)
         else:
             logger.debug("Status code is not 200 , response is %s", response.content)
-            data = response.text  # Entire response is downloaded if request failed
-            with open(output_file, 'a') as f:
+            data = response.content  # Entire response is downloaded if request failed
+            with open(output_file, 'ab') as f:
                 f.write(data)
 
         task['responseHeaders'] = dict(response.headers)
@@ -363,9 +361,9 @@ def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any
     else:
         s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
         if s3_upload_url is not None:
-            upload_success = upload_s3(s3_upload_url)
+            upload_success = upload_s3(s3_upload_url, task['responseHeaders'])
             if upload_success:
-                task['output'] = s3_signed_get_url
+                task['s3Url'] = s3_signed_get_url
                 logger.info("Data uploaded to S3 successfully")
                 return task
 
@@ -404,14 +402,18 @@ class RateLimiter:
             time.sleep(0.5)
 
 
-def upload_s3(preSignedUrl: str) -> bool:
+def upload_s3(preSignedUrl: str, headers: Dict[str, Any]) -> bool:
+    headersForS3: Dict[str, str] = {}
+    if 'Content-Encoding' in headers and headers['Content-Encoding'] is not None:
+        headersForS3['Content-Encoding'] = headers['Content-Encoding']
+    if 'Content-Type' in headers and headers['Content-Type'] is not None:
+        headersForS3['Content-Type'] = headers['Content-Type']
+
+    logger.info(f"debugging log {preSignedUrl}, {headersForS3}")
+
     try:
-        with open(output_file, 'r') as file:
-            headers: Dict[str, str] = {
-                "Content-Type": "application/json;charset=utf-8"
-            }
-            data: bytes = file.read().encode('utf-8', errors='replace')
-            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=verify_cert, proxies=outgoing_proxy)
+        with open(output_file, 'rb') as file:
+            response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file, verify=verify_cert, proxies=outgoing_proxy)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -435,7 +437,7 @@ def _createFolder(folder_path: str) -> None:
 
 
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
-    params: Dict[str, str] = {'fileName': f"{taskId}{uuid.uuid4().hex}.txt"}
+    params: Dict[str, str] = {'fileName': f"{taskId}{uuid.uuid4().hex}"}
     try:
         rate_limiter.throttle()
         get_s3_url: requests.Response = requests.get(
