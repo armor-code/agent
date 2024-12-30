@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os
 import secrets
+import shutil
 import string
 import uuid
 from collections import deque
@@ -11,6 +13,7 @@ from typing import Optional, Tuple, Any, Dict
 import requests
 import logging
 import time
+import gzip
 from urllib.parse import unquote
 
 # Global variables
@@ -20,8 +23,9 @@ armorcode_folder: str = '/tmp/armorcode'
 log_folder: str = '/tmp/armorcode/log'
 output_file_folder: str = '/tmp/armorcode/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
+output_file_zip: str = f"{output_file_folder}/large_output_file{rand_string}.zip"
 
-max_file_size: int = 1024 * 100  # max_size data that would be sent in payload, more than that will send via s3
+max_file_size: int = 1024 * 1  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
@@ -40,9 +44,11 @@ inward_proxy = None
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
 
+upload_to_ac = False
+
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -57,6 +63,7 @@ def main() -> None:
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
+    parser.add_argument("--uploadToAc", action="store_true", help="Upload to Armorcode instead of s3 (default: False)", default=False)
 
     args = parser.parse_args()
 
@@ -66,6 +73,7 @@ def main() -> None:
     timeout_cmd = args.timeout
     verify_cmd = args.verify
     debug_cmd = args.debugMode
+    upload_to_ac = args.uploadToAc
 
     inward_proxy_https = args.inwardProxyHttps
     inward_proxy_http = args.inwardProxyHttp
@@ -191,9 +199,17 @@ def process() -> None:
                     os.remove(output_file)
                 except OSError as e:
                     logger.error("Error removing output file: %s", e)
+            # Remove the output generated file
+            if os.path.exists(output_file_zip):
+                try:
+                    os.remove(output_file_zip)
+                except OSError as e:
+                    logger.error("Error removing output file: %s", e)
 
 
-def update_task(task: Dict[str, Any], count: int = 0) -> None:
+def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
+    if task is None:
+        return
     # Update the task status
     if count > max_retry:
         logger.error("Retry count exceeds for task %s", task['taskId'])
@@ -252,7 +268,6 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=timeout, verify=verify_cert, proxies=inward_proxy)
         logger.info("Response: %d", response.status_code)
-        response.encoding = 'utf-8-sig'
 
         data: Any = None
         if response.status_code == 200:
@@ -264,62 +279,102 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 # Process the response in chunks
                 for chunk in response.iter_content(chunk_size=1024 * 10):
                     if chunk:
-                        with open(output_file, 'a') as f:
-                            decoded_data = chunk.decode('utf-8-sig', errors='replace')
-                            f.write(decoded_data)
+                        with open(output_file, 'ab') as f:
+                            f.write(chunk)
             else:
                 logger.info("Non-chunked response, processing whole payload...")
-                data = response.text  # Entire response is downloaded
-                with open(output_file, 'a') as f:
+                data = response.content  # Entire response is downloaded
+                with open(output_file, 'ab') as f:
                     f.write(data)
         else:
             logger.debug("Status code is not 200 , response is %s", response.content)
-            data = response.text  # Entire response is downloaded if request failed
-            with open(output_file, 'a') as f:
+            data = response.content  # Entire response is downloaded if request failed
+            with open(output_file, 'ab') as f:
                 f.write(data)
 
-        s3_signed_get_url: Optional[str] = None
+        task['responseHeaders'] = dict(response.headers)
+        task['statusCode'] = response.status_code
 
         file_size: int = os.path.getsize(output_file)
         logger.info("file size %s", file_size)
         is_s3_upload: bool = file_size > max_file_size  # if size is greater than max_size, upload data to s3
-        if is_s3_upload:
-            s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
-            if s3_upload_url is None:
-                logger.warning("Failed to get S3 upload URL for URL %s", url)
-            else:
-                upload_success = upload_s3(s3_upload_url)
 
-        # update task with the output
-        _update_task_with_response(task, response, s3_signed_get_url)
+        if not is_s3_upload:
+            logger.info("Data is less than %s, sending data in response", max_file_size)
+            with open(output_file, 'r') as file:
+                task['output'] = file.read()
+            return task
 
-        logger.info("Task %s processed successfully.", taskId)
-        return task
-
+        return upload_response(taskId, task)
     except requests.exceptions.RequestException as e:
         logger.error("Network error processing task %s: %s", taskId, e)
+        task['statusCode'] = 500
         task['output'] = f"Network error: {str(e)}"
     except Exception as e:
         logger.error("Unexpected error processing task %s: %s", taskId, e)
+        task['statusCode'] = 500
         task['output'] = f"Error: {str(e)}"
-
     return task
+
+
+def zip_response(input_file: str, output_file: str) -> bool:
+    try:
+        with open(input_file, 'rb') as f_in:  
+            with gzip.open(output_file, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+        return True
+    except Exception as e:
+        logger.error("Unable to zip file: %s", e)
+        return False
+
+
+def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if upload_to_ac:
+        try:
+            success = zip_response(output_file, output_file_zip)
+            file_path = output_file_zip if success else output_file
+            task['responseZipped'] = success
+            file_name = f"{taskId}_{uuid.uuid4().hex}.{'zip' if success else 'txt'}"
+            headers: Dict[str, str] = {
+                "Authorization": f"Bearer {api_key}",
+            }
+            task_json = json.dumps(task)
+            files = {
+                # 'fileFieldName' is the name of the form field expected by the server
+                "file": (file_name, open(file_path, "rb"), f"{'application/zip' if success else 'text/plain'}"),
+                "task": (None, task_json, "application/json")
+                # If you have multiple files, you can add them here as more entries
+            }
+            rate_limiter.throttle()
+            upload_result: requests.Response = requests.post(
+                f"{server_url}/api/http-teleport/upload-result",
+                headers=headers,
+                timeout=300, verify=verify_cert, proxies=outgoing_proxy, files=files
+            )
+            logger.info("Upload result response: %s, code: %d", upload_result.text, upload_result.status_code)
+            upload_result.raise_for_status()
+            return None
+        except Exception as e:
+            logger.error("Unable to upload file to armorcode: %s", e)
+            raise e
+    else:
+        s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
+        if s3_upload_url is not None:
+            upload_success = upload_s3(s3_upload_url, task['responseHeaders'])
+            if upload_success:
+                task['s3Url'] = s3_signed_get_url
+                logger.info("Data uploaded to S3 successfully")
+                return task
+
+        task['status'] = 500
+        task['output'] = "Error: failed to upload result to s3"
+        return task
 
 
 def check_and_update_encode_url(headers, url: str):
     if "/cxrestapi/auth/identity/connect/token" in url:
         headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-
-def _update_task_with_response(task: Dict[str, Any], response: requests.Response,
-                               s3_signed_get_url: Optional[str]) -> None:
-    task['responseHeaders'] = dict(response.headers)
-    task['statusCode'] = response.status_code
-    if s3_signed_get_url is None:  # check if needs to send data or fileURL
-        with open(output_file, 'r') as file:
-            task['output'] = file.read()
-    else:
-        task['s3Url'] = s3_signed_get_url
 
 
 class RateLimiter:
@@ -347,14 +402,18 @@ class RateLimiter:
             time.sleep(0.5)
 
 
-def upload_s3(preSignedUrl: str) -> bool:
+def upload_s3(preSignedUrl: str, headers: Dict[str, Any]) -> bool:
+    headersForS3: Dict[str, str] = {}
+    if 'Content-Encoding' in headers and headers['Content-Encoding'] is not None:
+        headersForS3['Content-Encoding'] = headers['Content-Encoding']
+    if 'Content-Type' in headers and headers['Content-Type'] is not None:
+        headersForS3['Content-Type'] = headers['Content-Type']
+
+    logger.info(f"debugging log {preSignedUrl}, {headersForS3}")
+
     try:
-        with open(output_file, 'r') as file:
-            headers: Dict[str, str] = {
-                "Content-Type": "application/json;charset=utf-8"
-            }
-            data: bytes = file.read().encode('utf-8', errors='replace')
-            response: requests.Response = requests.put(preSignedUrl, headers=headers, data=data, verify=verify_cert, proxies=outgoing_proxy)
+        with open(output_file, 'rb') as file:
+            response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file, verify=verify_cert, proxies=outgoing_proxy)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -378,7 +437,7 @@ def _createFolder(folder_path: str) -> None:
 
 
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
-    params: Dict[str, str] = {'fileName': f"{taskId}{uuid.uuid4().hex}.txt"}
+    params: Dict[str, str] = {'fileName': f"{taskId}{uuid.uuid4().hex}"}
     try:
         rate_limiter.throttle()
         get_s3_url: requests.Response = requests.get(
