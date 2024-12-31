@@ -17,6 +17,7 @@ import gzip
 from urllib.parse import unquote
 
 # Global variables
+__version__ = "1.0.0"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 armorcode_folder: str = '/tmp/armorcode'
@@ -25,7 +26,7 @@ output_file_folder: str = '/tmp/armorcode/output_files'
 output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
 output_file_zip: str = f"{output_file_folder}/large_output_file{rand_string}.zip"
 
-max_file_size: int = 1024 * 1  # max_size data that would be sent in payload, more than that will send via s3
+max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
@@ -169,7 +170,7 @@ def process() -> None:
                     continue
 
                 logger.info("Received task: %s", task['taskId'])
-
+                task["version"] = __version__
                 # Process the task
                 result: Dict[str, Any] = process_task(task)
 
@@ -408,8 +409,6 @@ def upload_s3(preSignedUrl: str, headers: Dict[str, Any]) -> bool:
         headersForS3['Content-Encoding'] = headers['Content-Encoding']
     if 'Content-Type' in headers and headers['Content-Type'] is not None:
         headersForS3['Content-Type'] = headers['Content-Type']
-
-    logger.info(f"debugging log {preSignedUrl}, {headersForS3}")
 
     try:
         with open(output_file, 'rb') as file:
