@@ -333,7 +333,7 @@ def zip_response() -> bool:
 def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if upload_to_ac:
         try:
-            success = zip_response(output_file, output_file_zip)
+            success = zip_response()
             file_path = output_file_zip if success else output_file
             task['responseZipped'] = success
             file_name = f"{taskId}_{uuid.uuid4().hex}.{'zip' if success else 'txt'}"
