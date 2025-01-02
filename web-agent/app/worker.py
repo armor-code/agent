@@ -318,10 +318,10 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     return task
 
 
-def zip_response(input_file: str, output_file: str) -> bool:
+def zip_response() -> bool:
     try:
-        with open(input_file, 'rb') as f_in:  
-            with gzip.open(output_file, 'wb') as f_out:
+        with open(output_file, 'rb') as f_in:
+            with gzip.open(output_file_zip, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
         return True
