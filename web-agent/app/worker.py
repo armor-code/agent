@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import base64
 import json
 import os
 import secrets
@@ -303,8 +304,11 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
         if not is_s3_upload:
             logger.info("Data is less than %s, sending data in response", max_file_size)
-            with open(output_file, 'r') as file:
-                task['output'] = file.read()
+            with open(output_file, 'rb') as file:
+                file_data = file.read()
+                base64_string = base64.b64encode(file_data).decode('utf-8')
+                task['responseBase64'] = True
+                task['output'] = base64_string
             return task
 
         return upload_response(taskId, task)
