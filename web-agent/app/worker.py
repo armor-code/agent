@@ -8,6 +8,7 @@ import string
 import uuid
 from collections import deque
 from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from typing import Optional, Tuple, Any, Dict
 
 import requests
@@ -320,6 +321,12 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
 def zip_response() -> bool:
     try:
+        # Validate paths are in allowed directory
+        allowed_dir = Path(armorcode_folder).resolve()
+        if not (output_file_folder.parent.is_relative_to(allowed_dir) and
+                output_file_zip.parent.is_relative_to(allowed_dir)):
+            raise ValueError("Files must be within the allowed directory")
+
         with open(output_file, 'rb') as f_in:
             with gzip.open(output_file_zip, 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
