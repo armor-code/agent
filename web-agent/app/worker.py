@@ -15,16 +15,18 @@ import logging
 import time
 import gzip
 from urllib.parse import unquote
+import tempfile
 
 # Global variables
 __version__ = "1.0.0"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
-armorcode_folder: str = '/tmp/armorcode'
-log_folder: str = '/tmp/armorcode/log'
-output_file_folder: str = '/tmp/armorcode/output_files'
-output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
-output_file_zip: str = f"{output_file_folder}/large_output_file{rand_string}.zip"
+ac_str = 'armorcode'
+armorcode_folder: str = os.path.join(tempfile.gettempdir(),  ac_str)
+log_folder: str = os.path.join(armorcode_folder, 'log')
+output_file_folder: str = os.path.join(armorcode_folder, 'output_files')
+output_file: str = os.path.join(output_file_folder, f"large_output_file{rand_string}.txt")
+output_file_zip: str = os.path.join(output_file_folder, f"large_output_file{rand_string}.zip")
 
 max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
@@ -278,19 +280,19 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
             if is_chunked:
                 logger.info("Processing in chunks...")
                 # Process the response in chunks
-                for chunk in response.iter_content(chunk_size=1024 * 10):
-                    if chunk:
-                        with open(output_file, 'ab') as f:
+                with open(output_file, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024 * 100):
+                        if chunk:
                             f.write(chunk)
             else:
                 logger.info("Non-chunked response, processing whole payload...")
                 data = response.content  # Entire response is downloaded
-                with open(output_file, 'ab') as f:
+                with open(output_file, 'wb') as f:
                     f.write(data)
         else:
             logger.debug("Status code is not 200 , response is %s", response.content)
             data = response.content  # Entire response is downloaded if request failed
-            with open(output_file, 'ab') as f:
+            with open(output_file, 'wb') as f:
                 f.write(data)
 
         task['responseHeaders'] = dict(response.headers)
@@ -419,7 +421,7 @@ def upload_s3(preSignedUrl: str, headers: Dict[str, Any]) -> bool:
 
     try:
         with open(output_file, 'rb') as file:
-            response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file, verify=verify_cert, proxies=outgoing_proxy)
+            response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file, verify=verify_cert, proxies=outgoing_proxy, timeout=120)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -468,7 +470,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
 # Function to set up logging with timed rotation and log retention
 def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
-    log_filename: str = os.path.join("/tmp/armorcode/log", f"app_log{index}.log")
+    log_filename: str = os.path.join(log_folder, f"app_log{index}.log")
 
     # Create a TimedRotatingFileHandler
     handler: TimedRotatingFileHandler = TimedRotatingFileHandler(
