@@ -8,6 +8,7 @@ import string
 import uuid
 from collections import deque
 from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from typing import Optional, Tuple, Any, Dict
 
 import requests
@@ -325,14 +326,19 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
 def zip_response() -> bool:
     try:
-        CHUNK_SIZE = 1024 * 1024
+        if not (Path(output_file).is_relative_to(tempfile.gettempdir()) and
+                Path(output_file_zip).is_relative_to(tempfile.gettempdir())):
+            raise ValueError("Files must be within the allowed directory")
+
+        chunk_size = 1024 * 1024
         with open(output_file, 'rb') as f_in:
             with gzip.open(output_file_zip, 'wb') as f_out:
                 while True:
-                    chunk = f_in.read(CHUNK_SIZE)
+                    chunk = f_in.read(chunk_size)
                     if not chunk:
                         break
                     f_out.write(chunk)
+
         return True
     except Exception as e:
         logger.error("Unable to zip file: %s", e)
@@ -431,6 +437,8 @@ def upload_s3(preSignedUrl: str, headers: Dict[str, Any]) -> bool:
     except Exception as e:
         logger.exception("Unexpected error uploading to S3: %s", e)
         raise
+
+
 
 
 def _createFolder(folder_path: str) -> None:
