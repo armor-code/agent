@@ -132,7 +132,7 @@ def main() -> None:
     logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s", server_url, verify_cert, timeout, outgoing_proxy, inward_proxy)
 
     if server_url is None or api_key is None:
-        logger.error("Empty serverUrl or api Key %s", server_url)
+        logger.error("Empty serverUrl %s", server_url)
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
     # Creating thread pool to use other thread if one thread is blocked in I/O
