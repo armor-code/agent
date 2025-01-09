@@ -4,7 +4,6 @@ import base64
 import json
 import os
 import secrets
-import shutil
 import string
 import uuid
 from collections import deque
@@ -32,7 +31,6 @@ logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
 
-# todo: different verify for
 verify_cert: bool = True
 max_retry: int = 3
 max_backoff_time: int = 600
@@ -173,6 +171,7 @@ def process() -> None:
                 logger.info("Received task: %s", task['taskId'])
                 task["version"] = __version__
                 # Process the task
+
                 result: Dict[str, Any] = process_task(task)
 
                 # Update the task status
@@ -324,10 +323,14 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
 def zip_response() -> bool:
     try:
+        CHUNK_SIZE = 1024 * 1024
         with open(output_file, 'rb') as f_in:
             with gzip.open(output_file_zip, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-
+                while True:
+                    chunk = f_in.read(CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    f_out.write(chunk)
         return True
     except Exception as e:
         logger.error("Unable to zip file: %s", e)
