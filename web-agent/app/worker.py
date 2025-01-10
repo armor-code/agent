@@ -448,8 +448,6 @@ def upload_s3(temp_file,preSignedUrl: str, headers: Dict[str, Any]) -> bool:
         raise
 
 
-
-
 def _createFolder(folder_path: str) -> None:
     if not os.path.exists(folder_path):  # Check if the directory exists
         try:
