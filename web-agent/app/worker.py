@@ -8,6 +8,7 @@ import string
 import uuid
 from collections import deque
 from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from typing import Optional, Tuple, Any, Dict
 
 import requests
@@ -15,16 +16,18 @@ import logging
 import time
 import gzip
 from urllib.parse import unquote
+import tempfile
 
 # Global variables
 __version__ = "1.0.0"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
-armorcode_folder: str = '/tmp/armorcode'
-log_folder: str = '/tmp/armorcode/log'
-output_file_folder: str = '/tmp/armorcode/output_files'
-output_file: str = f"{output_file_folder}/large_output_file{rand_string}.txt"
-output_file_zip: str = f"{output_file_folder}/large_output_file{rand_string}.zip"
+
+ac_str = 'armorcode'
+
+armorcode_folder: str = os.path.join(tempfile.gettempdir(), ac_str)
+log_folder: str = os.path.join(armorcode_folder, 'log')
+output_file_folder: str = os.path.join(armorcode_folder, 'output_files')
 
 max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
@@ -38,7 +41,7 @@ min_backoff_time: int = 5
 
 timeout: int = 10
 
-outgoing_proxy = None # this is with respect to client. proxy for calls going out of customer environment. ( to armorcode).
+outgoing_proxy = None  # this is with respect to client. proxy for calls going out of customer environment. ( to armorcode).
 inward_proxy = None
 
 # throttling to 25 requests per seconds to avoid rate limit errors
@@ -63,7 +66,8 @@ def main() -> None:
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--uploadToAc", action="store_true", help="Upload to Armorcode instead of s3 (default: False)", default=False)
+    parser.add_argument("--uploadToAc", action="store_true", help="Upload to Armorcode instead of s3 (default: False)",
+                        default=False)
 
     args = parser.parse_args()
 
@@ -126,10 +130,11 @@ def main() -> None:
     if api_key is None:
         api_key = os.getenv("api_key")
 
-    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s", server_url, verify_cert, timeout, outgoing_proxy, inward_proxy)
+    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s", server_url,
+                verify_cert, timeout, outgoing_proxy, inward_proxy)
 
     if server_url is None or api_key is None:
-        logger.error("Empty serverUrl or api Key %s", server_url)
+        logger.error("Empty serverUrl %s", server_url)
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
     # Creating thread pool to use other thread if one thread is blocked in I/O
@@ -193,19 +198,6 @@ def process() -> None:
         except Exception as e:
             logger.error("Unexpected error while processing: %s", e)
             time.sleep(5)
-        finally:
-            # Remove the output generated file
-            if os.path.exists(output_file):
-                try:
-                    os.remove(output_file)
-                except OSError as e:
-                    logger.error("Error removing output file: %s", e)
-            # Remove the output generated file
-            if os.path.exists(output_file_zip):
-                try:
-                    os.remove(output_file_zip)
-                except OSError as e:
-                    logger.error("Error removing output file: %s", e)
 
 
 def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
@@ -259,6 +251,21 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     expiryTime: int = task.get('expiryTsMs', round((time.time() + 300) * 1000))
     logger.info("Processing task %s: %s %s", taskId, method, url)
 
+    # creating temp file to store outputs
+    temp_output_file = tempfile.NamedTemporaryFile(
+        prefix="output_file" + taskId,
+        suffix=".txt",
+        dir=output_file_folder,
+        delete=False
+    )
+
+    temp_output_file_zip = tempfile.NamedTemporaryFile(
+        prefix="output_file_zip" + taskId,
+        suffix=".zip",
+        dir=output_file_folder,
+        delete=False
+    )
+
     try:
         # Running the request
         # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
@@ -278,38 +285,38 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
             if is_chunked:
                 logger.info("Processing in chunks...")
                 # Process the response in chunks
-                for chunk in response.iter_content(chunk_size=1024 * 10):
-                    if chunk:
-                        with open(output_file, 'ab') as f:
+                with open(temp_output_file.name, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=1024 * 100):
+                        if chunk:
                             f.write(chunk)
             else:
                 logger.info("Non-chunked response, processing whole payload...")
                 data = response.content  # Entire response is downloaded
-                with open(output_file, 'ab') as f:
+                with open(temp_output_file.name, 'wb') as f:
                     f.write(data)
         else:
             logger.debug("Status code is not 200 , response is %s", response.content)
             data = response.content  # Entire response is downloaded if request failed
-            with open(output_file, 'ab') as f:
+            with open(temp_output_file.name, 'wb') as f:
                 f.write(data)
 
         task['responseHeaders'] = dict(response.headers)
         task['statusCode'] = response.status_code
 
-        file_size: int = os.path.getsize(output_file)
+        file_size: int = os.path.getsize(temp_output_file.name)
         logger.info("file size %s", file_size)
         is_s3_upload: bool = file_size > max_file_size  # if size is greater than max_size, upload data to s3
 
         if not is_s3_upload:
             logger.info("Data is less than %s, sending data in response", max_file_size)
-            with open(output_file, 'rb') as file:
+            with open(temp_output_file.name, 'rb') as file:
                 file_data = file.read()
                 base64_string = base64.b64encode(file_data).decode('utf-8')
                 task['responseBase64'] = True
                 task['output'] = base64_string
             return task
 
-        return upload_response(taskId, task)
+        return upload_response(temp_output_file.name, temp_output_file_zip.name, taskId, task)
     except requests.exceptions.RequestException as e:
         logger.error("Network error processing task %s: %s", taskId, e)
         task['statusCode'] = 500
@@ -318,30 +325,37 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         logger.error("Unexpected error processing task %s: %s", taskId, e)
         task['statusCode'] = 500
         task['output'] = f"Error: {str(e)}"
+    os.unlink(temp_output_file.name)
+    os.unlink(temp_output_file_zip.name)
     return task
 
 
-def zip_response() -> bool:
+def zip_response(temp_file, temp_file_zip) -> bool:
     try:
-        CHUNK_SIZE = 1024 * 1024
-        with open(output_file, 'rb') as f_in:
-            with gzip.open(output_file_zip, 'wb') as f_out:
+        if not (Path(temp_file).is_relative_to(tempfile.gettempdir()) and
+                Path(temp_file_zip).is_relative_to(tempfile.gettempdir())):
+            raise ValueError("Files must be within the allowed directory")
+
+        chunk_size = 1024 * 1024
+        with open(temp_file, 'rb') as f_in:
+            with gzip.open(temp_file_zip, 'wb') as f_out:
                 while True:
-                    chunk = f_in.read(CHUNK_SIZE)
+                    chunk = f_in.read(chunk_size)
                     if not chunk:
                         break
                     f_out.write(chunk)
+
         return True
     except Exception as e:
         logger.error("Unable to zip file: %s", e)
         return False
 
 
-def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if upload_to_ac:
         try:
-            success = zip_response()
-            file_path = output_file_zip if success else output_file
+            success = zip_response(temp_file, temp_file_zip)
+            file_path = temp_file_zip if success else temp_file
             task['responseZipped'] = success
             file_name = f"{taskId}_{uuid.uuid4().hex}.{'zip' if success else 'txt'}"
             headers: Dict[str, str] = {
@@ -369,7 +383,7 @@ def upload_response(taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any
     else:
         s3_upload_url, s3_signed_get_url = get_s3_upload_url(taskId)
         if s3_upload_url is not None:
-            upload_success = upload_s3(s3_upload_url, task['responseHeaders'])
+            upload_success = upload_s3(temp_file, s3_upload_url, task['responseHeaders'])
             if upload_success:
                 task['s3Url'] = s3_signed_get_url
                 logger.info("Data uploaded to S3 successfully")
@@ -410,7 +424,7 @@ class RateLimiter:
             time.sleep(0.5)
 
 
-def upload_s3(preSignedUrl: str, headers: Dict[str, Any]) -> bool:
+def upload_s3(temp_file,preSignedUrl: str, headers: Dict[str, Any]) -> bool:
     headersForS3: Dict[str, str] = {}
     if 'Content-Encoding' in headers and headers['Content-Encoding'] is not None:
         headersForS3['Content-Encoding'] = headers['Content-Encoding']
@@ -418,8 +432,9 @@ def upload_s3(preSignedUrl: str, headers: Dict[str, Any]) -> bool:
         headersForS3['Content-Type'] = headers['Content-Type']
 
     try:
-        with open(output_file, 'rb') as file:
-            response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file, verify=verify_cert, proxies=outgoing_proxy)
+        with open(temp_file, 'rb') as file:
+            response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file,
+                                                       verify=verify_cert, proxies=outgoing_proxy, timeout=120)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -468,7 +483,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
 # Function to set up logging with timed rotation and log retention
 def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
-    log_filename: str = os.path.join("/tmp/armorcode/log", f"app_log{index}.log")
+    log_filename: str = os.path.join(log_folder, f"app_log{index}.log")
 
     # Create a TimedRotatingFileHandler
     handler: TimedRotatingFileHandler = TimedRotatingFileHandler(
@@ -490,7 +505,7 @@ def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
         logger.setLevel(logging.INFO)  # Set the log level (DEBUG, INFO, etc.)
 
     logger.addHandler(handler)
-
+    logger.info("Log folder is created %s", log_folder)
     return logger
 
 
