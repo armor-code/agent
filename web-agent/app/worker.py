@@ -311,6 +311,8 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
             logger.info("Data is less than %s, sending data in response", max_file_size)
             with open(temp_output_file.name, 'rb') as file:
                 file_data = file.read()
+                if len(file_data) == 0:
+                    return task
                 base64_string = base64.b64encode(file_data).decode('utf-8')
                 task['responseBase64'] = True
                 task['output'] = base64_string
