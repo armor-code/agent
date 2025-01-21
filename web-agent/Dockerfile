@@ -25,12 +25,9 @@ RUN chmod +x /usr/src/app/worker.py
 
 RUN mkdir -p /tmp/armorcode/
 
-# Copy the start script for running worker.py
-COPY start_all.sh /usr/src/app/start_all.sh
-RUN chmod +x /usr/src/app/start_all.sh
-
 # Run the start script on container launch
-CMD ["sh", "/usr/src/app/start_all.sh"]
+ENTRYPOINT ["/usr/src/venv/bin/python3", "worker.py"]
+
 
 
 

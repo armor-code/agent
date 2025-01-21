@@ -59,49 +59,67 @@ docker pull armorcode/armorcode-web-agent
 ```
 3. Get Server Url of the Armorcode
 4. Create a folder/volume to store Api logs
-5. Run the docker Image as
+5. Run the docker Image with serverURL and api key as arguments
 ```commandline
-docker run -d -e server_url='<server_url>' -e api_key='<api_key>'  -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent
+docker run -d -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent --serverUrl='<server_url>' --apiKey='<api_key>' --timeout 30 
 ```
-6. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass env variable
+6. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass this extra argument at the end
 ```commandline
-docker run -d -e server_url='<server_url>' -e api_key='<api_key>' -e verify=False  -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent
+  --verify=False  
 ```
-7. If you have HTTP/HTTPS proxy configs enabled in the VM, those configs should be passed to docker container via env variables . ex ##
+7. If you have HTTPS proxy to make calls to ArmorCode API, add this argument. ex ##
 ```commandline
-docker run -d -e server_url='<server_url>' -e api_key='<api_key>' -e verify=False -e HTTP_PROXY=<http_proxy_url>  -e HTTPS_PROXY=<https_proxy_url>  -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent
+  --outgoingProxyHttps='<https_proxy_to_access_armorcode>'
+```
+8. If you have HTTPS/HTTP proxy to make calls to Internal tools, add this argument. ex ##
+```commandline
+  --inwardProxyHttps='<https_proxy_to_access_internal_tools>' --inwardProxyHttp='<http_proxy_to_access_internal_tools>'
+```
+9. If ArmorCode S3 Url bucket is not whitelisted , add this argument:
+```commandline
+  --uploadToAc
 ```
 
-
-
+[//]: # (--serverUrl='https://qa.armorcode.ai' --apiKey='afa3dfe5-11b3-4b6f-a5e2-2138c1918c29' --verify=False  --uploadToAc)
 
 
 ## Setting up the Agent just using the Agent Script 
 Steps for customer
 1. install requirements:  
-   ```commandline
-   wget -O requirements.txt 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/requirements.txt'; pip3 install -r requirements. txt
-   ```
+```commandline
+  wget -O requirements.txt 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/requirements.txt'; pip3 install -r requirements. txt
+```
 2. Download the script:
-   ```commandline
-   wget -O worker.py 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/app/worker.py'
-   ```
+```commandline
+  wget -O worker.py 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/app/worker.py'
+```
 
 3. Run command: 
-   ```commandline
-   python3 worker.py --serverUrl 'https://app.armorcode.com' --apiKey `<apiKey>` --index 0 --timeout 25 --verify False
-    ```
-4. If to make external call to Armorcode server proxy server is needed then pass these values in command line arguments
-   ```commandline
-   --outgoingProxyHttps <https_proxy> --outgoingProxyHttp <http_proxy> 
-   ```
-   Note: Both are optional , if not provided agent will use the default proxy in the VM (values present in $HTTP_PROXY environment variable)
-5. If to make internal calls to tools/services proxy is needed, then pass these values in command line arguments
-   ```commandline
-   --inwardProxyHttps <https_proxy> --inwardProxyHttp <http_proxy>
-   ```
+```commandline
+  python3 worker.py --serverUrl 'https://app.armorcode.com' --apiKey `<apiKey>` --index 0 --timeout 30
+```
+4. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass this extra argument at the end
+```commandline
+  --verify=False  
+```
 
-5. Check logs: 
-    ```commandline
-    cd /tmp/armorcode/log ; tail -F *
-   ```
+5. If you have HTTPS proxy to make calls to ArmorCode API, add this argument. ex ##
+```commandline
+  --outgoingProxyHttps='<https_proxy_to_access_armorcode>'
+```
+
+6. If you have HTTPS/HTTP proxy to make calls to Internal tools, add this argument. ex ##
+```commandline
+  --inwardProxyHttps='<https_proxy_to_access_internal_tools>' --inwardProxyHttp='<http_proxy_to_access_internal_tools>'
+```
+
+7. If ArmorCode S3 Url bucket is not whitelisted , add this argument:
+```commandline
+  --uploadToAc
+```
+
+
+8. Check logs: 
+```commandline
+  cd /tmp/armorcode/log ; tail -F *
+```
