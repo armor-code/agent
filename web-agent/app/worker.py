@@ -19,7 +19,7 @@ from urllib.parse import unquote
 import tempfile
 
 # Global variables
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -56,8 +56,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
-    parser.add_argument("--index", required=True, help="Agent index no")
-    parser.add_argument("--timeout", required=False, help="timeout", default=10)
+    parser.add_argument("--index", required=False, help="Agent index no", default="_prod")
+    parser.add_argument("--timeout", required=False, help="timeout", default=30)
     parser.add_argument("--verify", required=False, help="Verify Cert", default=True)
     parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
 
@@ -130,8 +130,8 @@ def main() -> None:
     if api_key is None:
         api_key = os.getenv("api_key")
 
-    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s", server_url,
-                verify_cert, timeout, outgoing_proxy, inward_proxy)
+    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s, uploadToAc %s", server_url,
+                verify_cert, timeout, outgoing_proxy, inward_proxy, upload_to_ac)
 
     if server_url is None or api_key is None:
         logger.error("Empty serverUrl %s", server_url)

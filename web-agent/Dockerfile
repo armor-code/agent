@@ -15,30 +15,17 @@ RUN apk update && \
     apk del py3-pip && \
     rm -rf /usr/lib/python3.12/ensurepip /usr/src/venv/bin/pip /usr/src/venv/bin/pip3.12 /usr/src/venv/bin/pip3 /usr/src/venv/lib/python3.12/site-packages/pip-24.2.dist-info/ /usr/src/venv/lib/python3.12/site-packages/pip/
 
-
 WORKDIR /usr/src/app
+
+# Copy the shell wrapper
+COPY entrypoint.sh /usr/src/entrypoint.sh
+RUN chmod +x /usr/src/entrypoint.sh
 
 COPY app/* ./
 
-# Make the Python script executable (optional)
 RUN chmod +x /usr/src/app/worker.py
-
 RUN mkdir -p /tmp/armorcode/
 
-# Copy the start script for running worker.py
-COPY start_all.sh /usr/src/app/start_all.sh
-RUN chmod +x /usr/src/app/start_all.sh
+ENTRYPOINT ["/usr/src/entrypoint.sh"]
 
-# Run the start script on container launch
-CMD ["sh", "/usr/src/app/start_all.sh"]
-
-
-
-
-
-
-
-
-
-
-
+CMD []
