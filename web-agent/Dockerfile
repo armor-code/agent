@@ -29,7 +29,7 @@ COPY app/* ./
 RUN chmod +x /usr/src/app/worker.py && \
     mkdir -p /tmp/armorcode/ && \
     mkdir -p /tmp/armorcode/log/ && \
-    chown -R appuser:appgroup /usr/src/app /tmp/armorcode
+    chown -R appuser:appgroup /usr/src /tmp/armorcode
 
 USER appuser
 
