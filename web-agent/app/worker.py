@@ -19,7 +19,7 @@ from urllib.parse import unquote
 import tempfile
 
 # Global variables
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 

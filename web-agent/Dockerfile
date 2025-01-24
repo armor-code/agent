@@ -15,16 +15,23 @@ RUN apk update && \
     apk del py3-pip && \
     rm -rf /usr/lib/python3.12/ensurepip /usr/src/venv/bin/pip /usr/src/venv/bin/pip3.12 /usr/src/venv/bin/pip3 /usr/src/venv/lib/python3.12/site-packages/pip-24.2.dist-info/ /usr/src/venv/lib/python3.12/site-packages/pip/
 
+
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 WORKDIR /usr/src/app
 
-# Copy the shell wrapper
 COPY entrypoint.sh /usr/src/entrypoint.sh
 RUN chmod +x /usr/src/entrypoint.sh
 
 COPY app/* ./
 
-RUN chmod +x /usr/src/app/worker.py
-RUN mkdir -p /tmp/armorcode/
+RUN chmod +x /usr/src/app/worker.py && \
+    mkdir -p /tmp/armorcode/ && \
+    mkdir -p /tmp/armorcode/log/ && \
+    chown -R appuser:appgroup /usr/src/app /tmp/armorcode
+
+USER appuser
 
 ENTRYPOINT ["/usr/src/entrypoint.sh"]
 
