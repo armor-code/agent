@@ -52,7 +52,7 @@ sequenceDiagram
 ## Setting up the Agent with Docker
 This is a docker image which can run on any OS supporting docker containers.
 
-1. Generate apiKey from Armorcode Platform
+1. Generate apiKey from Armorcode Platform(API key type : API, Product: All, Role: Admin)
 2. Download the latest Agent Image
 ```commandline
 docker pull armorcode/armorcode-web-agent
