@@ -17,7 +17,8 @@ RUN apk update && \
 
 
 
-RUN addgroup -S -g 1000 appgroup && adduser -S -u 1000 -G appgroup appuser
+RUN addgroup -g 1001 appgroup && adduser -D -u 1001 -G appgroup 1001
+
 
 WORKDIR /usr/src/app
 
@@ -29,9 +30,9 @@ COPY app/* ./
 RUN chmod +x /usr/src/app/worker.py && \
     mkdir -p /tmp/armorcode/ && \
     mkdir -p /tmp/armorcode/log/ && \
-    chown -R appuser:appgroup /usr/src /tmp/armorcode
+    chown -R 1001:1001 /usr/src /tmp/armorcode
 
-USER appuser
+USER 1001
 
 ENTRYPOINT ["/usr/src/entrypoint.sh"]
 
