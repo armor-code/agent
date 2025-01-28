@@ -17,7 +17,7 @@ RUN apk update && \
 
 
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup -S -g 1000 appgroup && adduser -S -u 1000 -G appgroup appuser
 
 WORKDIR /usr/src/app
 
