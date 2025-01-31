@@ -268,8 +268,8 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Running the request
-        # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
-        # logger.info("expiry %s, %s", expiryTime, timeout)
+        timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
+        logger.info("expiry %s, %s", expiryTime, timeout)
 
         logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         check_and_update_encode_url(headers, url)
