@@ -274,7 +274,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=timeout, verify=verify_cert, proxies=inward_proxy)
+                                                       timeout=(7, timeout), verify=verify_cert, proxies=inward_proxy)
         logger.info("Response: %d", response.status_code)
 
         data: Any = None
