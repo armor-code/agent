@@ -10,6 +10,7 @@ from urllib.request import urlretrieve
 import Mock_ArmorCode_server
 from MockClientServer import client_app
 from Resources import TestCases
+from TestHelper import state_manager
 
 file_directory = "Resources/Files/FilesToUpload"
 
@@ -37,18 +38,18 @@ class TestArmorCodeAgent(unittest.TestCase):
         # Install requirements
         subprocess.run(['pip3', 'install', '-r', 'requirements.txt'])
 
-        # Start Mock_ArmorCode_server
-        # cls.ac_thread = threading.Thread(target=lambda: ac_app.run(port=5000))
-        # cls.ac_thread.daemon = True
-        # cls.ac_thread.start()
-        #
-        # # Start MockClientServer
-        # cls.client_thread = threading.Thread(target=lambda: client_app.run(port=5001))
-        # cls.client_thread.daemon = True
-        # cls.client_thread.start()
-        #
-        # # Wait for servers to start
-        # time.sleep(2)
+        #Start Mock_ArmorCode_server
+        cls.ac_thread = threading.Thread(target=lambda: Mock_ArmorCode_server.ac_app.run(port=5000))
+        cls.ac_thread.daemon = True
+        cls.ac_thread.start()
+
+        # Start MockClientServer
+        cls.client_thread = threading.Thread(target=lambda: client_app.run(port=5001))
+        cls.client_thread.daemon = True
+        cls.client_thread.start()
+
+        # Wait for servers to start
+        time.sleep(2)
 
     @staticmethod
     def create_large_zip_file(file_path, size_bytes):
@@ -87,8 +88,7 @@ class TestArmorCodeAgent(unittest.TestCase):
         for case in TestCases.test_cases:
             with self.subTest(task_id=case['task_id']):
                 # Set task type to return
-                Mock_ArmorCode_server.write_global_var(case['task_id'])
-
+                state_manager.set_task_type(case['task_id'])
                 # Run worker and wait for result
                 result = self.run_worker_and_wait(case['task_id'])
 

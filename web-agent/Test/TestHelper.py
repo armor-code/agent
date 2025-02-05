@@ -1,5 +1,46 @@
 from enum import Enum
 
+import json
+import os
+
+import json
+import os
+
+class TestStateManager:
+    _file_path = 'Resources/Files/test_state.json'
+
+    def get_task_type(self):
+        if not os.path.exists(self._file_path):
+            return "default_value"
+        with open(self._file_path, 'r') as f:
+            data = json.load(f)
+        return data.get("task_type", "default_value")
+
+    def set_task_type(self, task_type):
+        data = {}
+        # Load existing data if the file exists
+        if os.path.exists(self._file_path):
+            with open(self._file_path, 'r') as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    # Handle empty or malformed JSON file
+                    data = {}
+        # Update the task_type key
+        data["task_type"] = task_type
+        # Write back the updated data
+        with open(self._file_path, 'w') as f:
+            json.dump(data, f, indent=4)
+
+    def reset_state(self):
+        if os.path.exists(self._file_path):
+            os.remove(self._file_path)
+        # Create an empty JSON file
+        with open(self._file_path, 'w') as f:
+            json.dump({}, f, indent=4)
+
+state_manager = TestStateManager()
+
 class VerificationResult(Enum):
     SUCCESS = "success"
     FAILURE = "failure"

@@ -96,11 +96,11 @@ Steps for customer
 
 3. Run command: 
 ```commandline
-  python3 worker.py --serverUrl 'https://app.armorcode.com' --apiKey `<apiKey>` --index 0 --timeout 30
+  python3 worker.py --serverUrl 'https://app.armorcode.com' --apiKey `<apiKey>`
 ```
-4. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass this extra argument at the end
+4. If you want to do certificates validations (needed in case if API end point requires valid certificates) pass this extra argument at the end
 ```commandline
-  --verify=False  
+  --verify 
 ```
 
 5. If you have HTTPS proxy to make calls to ArmorCode API, add this argument. ex ##

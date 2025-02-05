@@ -9,7 +9,7 @@ import Resources.TestCases as TestCases
 
 from werkzeug.utils import secure_filename
 from  TaskStatus import TaskStatusEnum
-from VerifyResult import VerificationResult, verify_task_result
+from TestHelper import VerificationResult, verify_task_result, state_manager
 
 import HttpTeleportTask
 
@@ -22,18 +22,6 @@ task_result_map = dict()
 
 config_file = "config.properties"
 # Function to read the variable from the file
-def read_global_var():
-    if os.path.exists(config_file):
-        with open(config_file, "r") as f:
-            for line in f:
-                if line.startswith("task_type"):
-                    return str(line.split("=")[1].strip()) # Default value is 10
-    return 10
-
-# Function to write the variable to the file
-def write_global_var(value):
-    with open(config_file, "w") as f:
-        f.write(f"task_type={value}\n")
 
 
 
@@ -49,7 +37,7 @@ def initialize_tasks():
 @ac_app.route('/api/http-teleport/get-task', methods=['GET'])
 def get_task():
     # Get taskType from query params, default to 'default' if not provided
-    task_type = read_global_var()
+    task_type = state_manager.get_task_type()
     task = task_map.get(task_type, None)
 
     if task is None:
