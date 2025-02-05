@@ -57,8 +57,7 @@ def main() -> None:
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
     parser.add_argument("--index", required=False, help="Agent index no", default="_prod")
-    parser.add_argument("--timeout", required=False, help="timeout", default=30)
-    parser.add_argument("--verify", required=False, help="Verify Cert", default=True)
+    parser.add_argument("--verify", action="store_true", help="Verify Cert", default=False)
     parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
 
     parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
@@ -74,8 +73,7 @@ def main() -> None:
     server_url = args.serverUrl
     api_key = args.apiKey
     agent_index: str = args.index
-    timeout_cmd = args.timeout
-    verify_cmd = args.verify
+    verify_cert = args.verify
     debug_cmd = args.debugMode
     upload_to_ac = args.uploadToAc
 
@@ -108,13 +106,6 @@ def main() -> None:
         if str(debug_cmd).lower() == "false":
             debug_mode = False
 
-    if verify_cmd is not None:
-        if str(verify_cmd).lower() == "false":
-            verify_cert = False
-
-    if timeout_cmd is not None:
-        timeout = int(timeout_cmd)
-
     if os.getenv('verify') is not None:
         if str(os.getenv('verify')).lower() == "false":
             verify_cert = False
@@ -137,14 +128,7 @@ def main() -> None:
         logger.error("Empty serverUrl %s", server_url)
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
-    # Creating thread pool to use other thread if one thread is blocked in I/O
-    # pool: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-    # pool.submit(process)
-    # pool.submit(process)
-    #
-    # pool.shutdown(wait=True)
 
-    # Instantiate RateLimiter for 25 requests per 15 seconds window
     rate_limiter = RateLimiter(request_limit=25, time_window=15)
     process()
 
@@ -274,7 +258,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=timeout, verify=verify_cert, proxies=inward_proxy)
+                                                       timeout=(7, timeout), verify=verify_cert, proxies=inward_proxy)
         logger.info("Response: %d", response.status_code)
 
         data: Any = None
