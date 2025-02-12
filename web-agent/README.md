@@ -5,8 +5,11 @@ The architecture enables controlled, secure message exchange between the Agent, 
 ## Authentication/Security Aspects:
 
 a) The Agent is a short and simple open-source python script created by ArmorCode.
+
 b) It communicates with Server using HTTPS. Agent authenticates with Server using API-key, generated out-of-band by customer from ArmorCode platform.
+
 c) Agent to on-prem Service (e.g. JIRA, Coverity, etc) is over HTTPS
+
 d) Agent communication with AWS S3 web-service is over HTTPS using pre-signed URL (received from Server) with validity of 10 minutes. The S3 bucket is a private bucket hosted in ArmorCode account.
 
 ## How It Works (Step-by-Step):
