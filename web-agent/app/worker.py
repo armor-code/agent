@@ -58,7 +58,7 @@ def main() -> None:
     parser.add_argument("--apiKey", required=False, help="Api Key")
     parser.add_argument("--index", required=False, help="Agent index no", default="_prod")
     parser.add_argument("--timeout", required=False, help="timeout", default=30)
-    parser.add_argument("--verify", required=False, help="Verify Cert", default=True)
+    parser.add_argument("--verify", required=False, help="Verify Cert", default=False)
     parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
 
     parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
@@ -116,8 +116,8 @@ def main() -> None:
         timeout = int(timeout_cmd)
 
     if os.getenv('verify') is not None:
-        if str(os.getenv('verify')).lower() == "false":
-            verify_cert = False
+        if str(os.getenv('verify')).lower() == "true":
+            verify_cert = True
 
     if os.getenv("timeout") is not None:
         timeout = int(os.getenv("timeout"))
@@ -268,13 +268,13 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Running the request
-        # timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
-        # logger.info("expiry %s, %s", expiryTime, timeout)
+        timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
+        logger.info("expiry %s, %s", expiryTime, timeout)
 
         logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=(7, timeout), verify=verify_cert, proxies=inward_proxy)
+                                                       timeout=(15, timeout), verify=verify_cert, proxies=inward_proxy)
         logger.info("Response: %d", response.status_code)
 
         data: Any = None
@@ -327,8 +327,9 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         logger.error("Unexpected error processing task %s: %s", taskId, e)
         task['statusCode'] = 500
         task['output'] = f"Error: {str(e)}"
-    os.unlink(temp_output_file.name)
-    os.unlink(temp_output_file_zip.name)
+    finally:
+        os.unlink(temp_output_file.name)
+        os.unlink(temp_output_file_zip.name)
     return task
 
 
@@ -510,8 +511,20 @@ def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
     logger.info("Log folder is created %s", log_folder)
     return logger
 
+def _clean_temp_output_files() -> None:
+    if os.path.exists(output_file_folder):
+        try:
+            ## delete all files in this folder
+            for file in os.listdir(output_file_folder):
+                file_path = os.path.join(output_file_folder, file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+        except Exception as e:
+            print("Error cleaning temp output files: %s", e)
+
 
 if __name__ == "__main__":
+    _clean_temp_output_files()
     _createFolder(armorcode_folder)  # create parent level folder for logs anf files
     _createFolder(log_folder)  # create folder to store log files
     _createFolder(output_file_folder)  # create folder to store output files
