@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 import argparse
 import base64
+import gzip
 import json
+import logging
 import os
 import secrets
 import string
+import tempfile
+import time
 import uuid
 from collections import deque
 from logging.handlers import TimedRotatingFileHandler
@@ -12,11 +16,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Any, Dict
 
 import requests
-import logging
-import time
-import gzip
-from urllib.parse import unquote
-import tempfile
+from gevent.pool import Pool
 
 # Global variables
 __version__ = "1.1.4"
@@ -161,6 +161,7 @@ def main() -> None:
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
+    pool = Pool(5)
     while True:
         try:
             # Get the next task for the agent
@@ -189,11 +190,8 @@ def process() -> None:
                 logger.info("Received task: %s", task['taskId'])
                 task["version"] = __version__
                 # Process the task
-
-                result: Dict[str, Any] = process_task(task)
-
-                # Update the task status
-                update_task(result)
+                pool.wait_available()  # Wait if the pool is full
+                pool.spawn(process_task_async, task)  # Submit the task when free
             elif get_task_response.status_code == 204:
                 logger.info("No task available. Waiting...")
                 time.sleep(5)
@@ -211,6 +209,20 @@ def process() -> None:
         except Exception as e:
             logger.error("Unexpected error while processing: %s", e)
             time.sleep(5)
+
+
+def process_task_async(task: Dict[str, Any]) -> None:
+    url: str = task.get('url')
+    taskId: str = task.get('taskId')
+    method: str = task.get('method').upper()
+
+    try:
+        result: Dict[str, Any] = process_task(task)
+        # Update the task status
+        update_task(result)
+    except Exception as e:
+        logger.info("Unexpected error while processing task id: %s,  method: %s url: %s, error: %s", taskId, method, url, e)
+        time.sleep(5)
 
 
 def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
