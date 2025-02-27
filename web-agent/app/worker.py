@@ -19,7 +19,7 @@ from urllib.parse import unquote
 import tempfile
 
 # Global variables
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -33,6 +33,7 @@ max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, 
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
+env_name: Optional[str] = None
 
 verify_cert: bool = True
 max_retry: int = 3
@@ -51,7 +52,7 @@ upload_to_ac = False
 
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac, env_name
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -60,6 +61,7 @@ def main() -> None:
     parser.add_argument("--timeout", required=False, help="timeout", default=30)
     parser.add_argument("--verify", required=False, help="Verify Cert", default=False)
     parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
+    parser.add_argument("--envName", required=False, help="Environment name", default="")
 
     parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
     parser.add_argument("--inwardProxyHttp", required=False, help="Pass inward Http proxy", default=None)
@@ -84,6 +86,7 @@ def main() -> None:
 
     outgoing_proxy_https = args.outgoingProxyHttps
     outgoing_proxy_http = args.outgoingProxyHttp
+    env_name = args.envName
 
     if inward_proxy_https is None and inward_proxy_http is None:
         inward_proxy = None
@@ -159,7 +162,7 @@ def process() -> None:
             rate_limiter.throttle()
 
             get_task_response: requests.Response = requests.get(
-                f"{server_url}/api/http-teleport/get-task",
+                f"{server_url}/api/http-teleport/get-task?envName={env_name}",
                 headers=headers,
                 timeout=25, verify=verify_cert,
                 proxies=outgoing_proxy
@@ -252,6 +255,8 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     logger.info("Processing task %s: %s %s", taskId, method, url)
 
     # creating temp file to store outputs
+    _createFolder(log_folder)  # create folder to store log files
+    _createFolder(output_file_folder)  # create folder to store output files
     temp_output_file = tempfile.NamedTemporaryFile(
         prefix="output_file" + taskId,
         suffix=".txt",
@@ -271,7 +276,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
 
-        logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
+        logger.info("Request for task %s with and input_data %s", taskId, input_data)
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=(15, timeout), verify=verify_cert, proxies=inward_proxy)
@@ -295,7 +300,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 with open(temp_output_file.name, 'wb') as f:
                     f.write(data)
         else:
-            logger.debug("Status code is not 200 , response is %s", response.content)
+            logger.info("Status code is not 200 , response is %s", response.content)
             data = response.content  # Entire response is downloaded if request failed
             with open(temp_output_file.name, 'wb') as f:
                 f.write(data)
