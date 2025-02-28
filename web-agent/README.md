@@ -121,6 +121,11 @@ Steps for customer
   --uploadToAc
 ```
 
+8. If the Agent being deployed is for certain env(Check in Armorcode Integration Page) pass envName as command line argument
+```commandline
+  --envName '<envName>'
+```
+
 
 8. Check logs: 
 ```commandline
