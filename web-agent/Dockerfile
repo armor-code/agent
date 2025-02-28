@@ -13,10 +13,10 @@ RUN apk update && \
     /usr/src/venv/bin/pip install --upgrade gevent && \
     /usr/src/venv/bin/pip install --upgrade urllib3 && \
     apk --update --no-cache upgrade openssl libssl3 libcrypto3 && \
-    rm -rf /var/lib/apt/lists/*
-#     apk del py3-pip
-#     rm -rf /usr/lib/python3.12/ensurepip /usr/src/venv/bin/pip /usr/src/venv/bin/pip3.12 /usr/src/venv/bin/pip3 /usr/src/venv/lib/python3.12/site-packages/pip-24.2.dist-info/ /usr/src/venv/lib/python3.12/site-packages/pip/
-#
+    rm -rf /var/lib/apt/lists/* && \
+    apk del py3-pip && \
+    rm -rf /usr/lib/python3.12/ensurepip /usr/src/venv/bin/pip /usr/src/venv/bin/pip3.12 /usr/src/venv/bin/pip3 /usr/src/venv/lib/python3.12/site-packages/pip-24.2.dist-info/ /usr/src/venv/lib/python3.12/site-packages/pip/
+
 
 
 RUN addgroup -g 1001 appgroup && adduser -D -u 1001 -G appgroup 1001

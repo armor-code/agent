@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-from gevent import monkey; monkey.patch_all()
+
+
+from gevent import monkey;
+monkey.patch_all()
 import argparse
 import base64
 import gzip
 import json
 import logging
 import os
+import shutil
 import secrets
 import string
 import tempfile
@@ -21,7 +25,7 @@ from gevent.pool import Pool
 
 
 # Global variables
-__version__ = "1.1.4"
+__version__ = "1.1.5"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -49,12 +53,12 @@ inward_proxy = None
 
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
-
+pool_size: int = 20
 upload_to_ac = False
 
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac, env_name
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac, env_name, pool_size
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -70,6 +74,7 @@ def main() -> None:
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
+    parser.add_argument("--poolSize", required=False, help="Multi threading pool size", default=20)
     parser.add_argument(
         "--uploadToAc",
         nargs='?',
@@ -85,6 +90,7 @@ def main() -> None:
     api_key = args.apiKey
     agent_index: str = args.index
     timeout_cmd = args.timeout
+    pool_size_cmd = args.poolSize
     verify_cmd = args.verify
     debug_cmd = args.debugMode
     upload_to_ac = args.uploadToAc
@@ -125,7 +131,8 @@ def main() -> None:
 
     if timeout_cmd is not None:
         timeout = int(timeout_cmd)
-
+    if pool_size_cmd is not None:
+        pool_size = int(pool_size)
     if os.getenv('verify') is not None:
         if str(os.getenv('verify')).lower() == "true":
             verify_cert = True
@@ -163,7 +170,7 @@ def main() -> None:
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
-    pool = Pool(5)
+    pool = Pool(pool_size)
     while True:
         try:
             # Get the next task for the agent
@@ -269,6 +276,40 @@ def _get_headers() -> Dict[str, str]:
     return headers
 
 
+def check_for_logs_fetch(url, task, temp_output_file_zip):
+    if 'agent/fetch-logs' in url and 'fetchLogs' in task.get('taskId'):
+        try:
+
+            # Zip the logs_folder
+            shutil.make_archive(temp_output_file_zip.name[:-4], 'zip', log_folder)
+
+            # Update the task with the zip file information
+            task['responseZipped'] = True
+            headers: Dict[str, str] = {
+                "Authorization": f"Bearer {api_key}",
+            }
+            logger.info(f"Logs zipped successfully: {temp_output_file_zip.name}")
+            files = {
+                # 'fileFieldName' is the name of the form field expected by the server
+                "file": (temp_output_file_zip.name, open(temp_output_file_zip, "rb"), f"{'application/zip'}"),
+                "task": (None, task, "application/json")
+                # If you have multiple files, you can add them here as more entries
+            }
+            rate_limiter.throttle()
+            upload_result: requests.Response = requests.post(
+                f"{server_url}/api/http-teleport/upload-logs?envName={env_name}",
+                headers=headers,
+                timeout=300, verify=verify_cert, proxies=outgoing_proxy, files=files
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error zipping logs: {str(e)}")
+            raise e
+    return False
+
+
+
+
 def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     url: str = task.get('url')
     input_data: Any = task.get('input')
@@ -297,10 +338,15 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Running the request
+        if task.get('rateLimitPerMin', None) is not None:
+            rate_limiter.set_limits(int(task.get('rateLimitPerMin')//4), 15)
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
 
         logger.info("Request for task %s with and input_data %s", taskId, input_data)
+
+        if check_for_logs_fetch(url, task, temp_output_file_zip):
+            return None
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=(15, timeout), verify=verify_cert, proxies=inward_proxy)
@@ -323,10 +369,10 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 ##data = response.content  # Entire response is downloaded
                 with open(temp_output_file.name, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=1024*500):
-                        f.write(data)
+                        f.write(chunk)
         else:
             logger.info("Status code is not 200 , response is %s", response.content)
-            data = response.content  # Entire response is downloaded if request failed
+            data = response.content
             with open(temp_output_file.name, 'wb') as f:
                 f.write(data)
 
@@ -354,7 +400,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         task['statusCode'] = 500
         task['output'] = f"Network error: {str(e)}"
     except Exception as e:
-        logger.error("Unexpected error processing task %s: %s", taskId, e)
+        logger.error("Unexpected error processing task %s: %s", taskId, e, exc_info=True)
         task['statusCode'] = 500
         task['output'] = f"Error: {str(e)}"
     finally:
@@ -437,6 +483,10 @@ class RateLimiter:
         self.request_limit = request_limit
         self.time_window = time_window
         self.timestamps = deque()
+
+    def set_limits(self, request_limit: int, time_window: int):
+        self.request_limit = request_limit
+        self.time_window = time_window
 
     def allow_request(self) -> bool:
 
