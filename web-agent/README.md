@@ -127,7 +127,7 @@ Steps for customer
 ```
 
 
-8. Check logs: 
+9. Check logs: 
 ```commandline
   cd /tmp/armorcode/log ; tail -F *
 ```
