@@ -166,9 +166,13 @@ def process() -> None:
             # Get the next task for the agent
             logger.info("Requesting task...")
             rate_limiter.throttle()
+            get_task_server_url = f"{server_url}/api/http-teleport/get-task"
+            if len(env_name) > 0:
+                get_task_server_url = f"{server_url}/api/http-teleport/get-task?envName={env_name}"
 
+            logger.info("Requesting task from %s", get_task_server_url)
             get_task_response: requests.Response = requests.get(
-                f"{server_url}/api/http-teleport/get-task?envName={env_name}",
+                get_task_server_url,
                 headers=headers,
                 timeout=25, verify=verify_cert,
                 proxies=outgoing_proxy
