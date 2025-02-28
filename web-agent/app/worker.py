@@ -19,7 +19,7 @@ from urllib.parse import unquote
 import tempfile
 
 # Global variables
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -33,6 +33,7 @@ max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, 
 logger: Optional[logging.Logger] = None
 api_key: Optional[str] = None
 server_url: Optional[str] = None
+env_name: Optional[str] = None
 
 verify_cert: bool = True
 max_retry: int = 3
@@ -51,7 +52,7 @@ upload_to_ac = False
 
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac
+    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac, env_name
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -60,14 +61,21 @@ def main() -> None:
     parser.add_argument("--timeout", required=False, help="timeout", default=30)
     parser.add_argument("--verify", required=False, help="Verify Cert", default=False)
     parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
+    parser.add_argument("--envName", required=False, help="Environment name", default="")
 
     parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
     parser.add_argument("--inwardProxyHttp", required=False, help="Pass inward Http proxy", default=None)
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--uploadToAc", action="store_true", help="Upload to Armorcode instead of s3 (default: False)",
-                        default=False)
+    parser.add_argument(
+        "--uploadToAc",
+        nargs='?',
+        type=str2bool,
+        const=True,
+        default=True,
+        help="Upload to Armorcode instead of S3 (default: True)"
+    )
 
     args = parser.parse_args()
 
@@ -84,6 +92,7 @@ def main() -> None:
 
     outgoing_proxy_https = args.outgoingProxyHttps
     outgoing_proxy_http = args.outgoingProxyHttp
+    env_name = args.envName
 
     if inward_proxy_https is None and inward_proxy_http is None:
         inward_proxy = None
@@ -157,9 +166,13 @@ def process() -> None:
             # Get the next task for the agent
             logger.info("Requesting task...")
             rate_limiter.throttle()
+            get_task_server_url = f"{server_url}/api/http-teleport/get-task"
+            if len(env_name) > 0:
+                get_task_server_url = f"{server_url}/api/http-teleport/get-task?envName={env_name}"
 
+            logger.info("Requesting task from %s", get_task_server_url)
             get_task_response: requests.Response = requests.get(
-                f"{server_url}/api/http-teleport/get-task",
+                get_task_server_url,
                 headers=headers,
                 timeout=25, verify=verify_cert,
                 proxies=outgoing_proxy
@@ -252,6 +265,8 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     logger.info("Processing task %s: %s %s", taskId, method, url)
 
     # creating temp file to store outputs
+    _createFolder(log_folder)  # create folder to store log files
+    _createFolder(output_file_folder)  # create folder to store output files
     temp_output_file = tempfile.NamedTemporaryFile(
         prefix="output_file" + taskId,
         suffix=".txt",
@@ -271,7 +286,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
 
-        logger.debug("Request for task %s with headers %s and input_data %s", taskId, headers, input_data)
+        logger.info("Request for task %s with and input_data %s", taskId, input_data)
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
                                                        timeout=(15, timeout), verify=verify_cert, proxies=inward_proxy)
@@ -295,7 +310,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 with open(temp_output_file.name, 'wb') as f:
                     f.write(data)
         else:
-            logger.debug("Status code is not 200 , response is %s", response.content)
+            logger.info("Status code is not 200 , response is %s", response.content)
             data = response.content  # Entire response is downloaded if request failed
             with open(temp_output_file.name, 'wb') as f:
                 f.write(data)
@@ -510,6 +525,20 @@ def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
     logger.addHandler(handler)
     logger.info("Log folder is created %s", log_folder)
     return logger
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return True  # If no value is provided, default to True
+    if v.lower() in ('yes', 'true', 't', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 
 def _clean_temp_output_files() -> None:
     if os.path.exists(output_file_folder):
