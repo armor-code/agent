@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from gevent import monkey; monkey.patch_all()
 import argparse
 import base64
 import gzip
@@ -17,7 +18,7 @@ from typing import Optional, Tuple, Any, Dict
 
 import requests
 from gevent.pool import Pool
-from gevent import monkey; monkey.patch_all()
+
 
 # Global variables
 __version__ = "1.1.4"
@@ -208,7 +209,7 @@ def process() -> None:
             logger.error("Network error: %s", e)
             time.sleep(10)  # Wait longer on network errors
         except Exception as e:
-            logger.error("Unexpected error while processing: %s", e)
+            logger.error("Unexpected error while processing: %s", e, exc_info=True)
             time.sleep(5)
 
 
@@ -319,9 +320,10 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                             f.write(chunk)
             else:
                 logger.info("Non-chunked response, processing whole payload...")
-                data = response.content  # Entire response is downloaded
+                ##data = response.content  # Entire response is downloaded
                 with open(temp_output_file.name, 'wb') as f:
-                    f.write(data)
+                    for chunk in response.iter_content(chunk_size=1024*500):
+                        f.write(data)
         else:
             logger.info("Status code is not 200 , response is %s", response.content)
             data = response.content  # Entire response is downloaded if request failed
