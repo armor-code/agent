@@ -68,8 +68,14 @@ def main() -> None:
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--uploadToAc", action="store_true", help="Upload to Armorcode instead of s3 (default: False)",
-                        default=False)
+    parser.add_argument(
+        "--uploadToAc",
+        nargs='?',
+        type=str2bool,
+        const=True,
+        default=True,
+        help="Upload to Armorcode instead of S3 (default: True)"
+    )
 
     args = parser.parse_args()
 
@@ -515,6 +521,20 @@ def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
     logger.addHandler(handler)
     logger.info("Log folder is created %s", log_folder)
     return logger
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return True  # If no value is provided, default to True
+    if v.lower() in ('yes', 'true', 't', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 
 def _clean_temp_output_files() -> None:
     if os.path.exists(output_file_folder):
