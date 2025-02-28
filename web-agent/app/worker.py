@@ -17,6 +17,7 @@ from typing import Optional, Tuple, Any, Dict
 
 import requests
 from gevent.pool import Pool
+from gevent import monkey; monkey.patch_all()
 
 # Global variables
 __version__ = "1.1.4"
