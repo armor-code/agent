@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-
-
 from gevent import monkey;
 monkey.patch_all()
 import argparse
@@ -53,7 +51,7 @@ inward_proxy = None
 
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
-pool_size: int = 20
+pool_size: int = 5
 upload_to_ac = False
 
 
@@ -74,7 +72,7 @@ def main() -> None:
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--poolSize", required=False, help="Multi threading pool size", default=20)
+    parser.add_argument("--poolSize", required=False, help="Multi threading pool size", default=5)
     parser.add_argument(
         "--uploadToAc",
         nargs='?',
