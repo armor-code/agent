@@ -188,11 +188,11 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
                 "Authorization": f"Bearer {config_dict['api_key']}",
             }
             logger.info(f"Logs zipped successfully: {temp_output_file_zip.name}")
+            task_json = json.dumps(task)
             files = {
                 # 'fileFieldName' is the name of the form field expected by the server
-                "file": (temp_output_file_zip.name, open(temp_output_file_zip, "rb"), f"{'application/zip'}"),
-                "task": (None, task, "application/json")
-                # If you have multiple files, you can add them here as more entries
+                "file": (temp_output_file_zip.name, open(temp_output_file_zip.name, "rb"), f"{'application/zip'}"),
+                "task": (None, task_json, "application/json")
             }
             rate_limiter.throttle()
             upload_logs_url = f"{config_dict.get('server_url')}/api/http-teleport/upload-logs"
@@ -204,6 +204,10 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
                 timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
                 files=files
             )
+            if upload_result.status_code == 200:
+                return True
+            else:
+                logger.error("Response code while uploading is not 200 , response code {} and error {} ", upload_result.status_code, upload_result.content)
             return True
         except Exception as e:
             logger.error(f"Error zipping logs: {str(e)}")
@@ -300,11 +304,11 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
     except requests.exceptions.RequestException as e:
         logger.error("Network error processing task %s: %s", taskId, e)
         task['statusCode'] = 500
-        task['output'] = f"Network error: {str(e)}"
+        task['output'] = f"Agent Side Error: Network error: {str(e)}"
     except Exception as e:
         logger.error("Unexpected error processing task %s: %s", taskId, e)
         task['statusCode'] = 500
-        task['output'] = f"Error: {str(e)}"
+        task['output'] = f"Agent Side Error: Error: {str(e)}"
     finally:
         os.unlink(temp_output_file.name)
         os.unlink(temp_output_file_zip.name)
@@ -538,7 +542,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     parser.add_argument("--index", required=False, help="Agent index no", default="_prod")
     parser.add_argument("--timeout", required=False, help="timeout", default=30)
     parser.add_argument("--verify", required=False, help="Verify Cert", default=False)
-    parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
+    parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=False)
     parser.add_argument("--envName", required=False, help="Environment name", default="")
 
     parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
@@ -594,10 +598,10 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
             outgoing_proxy['http'] = outgoing_proxy_http
         config['outgoing_proxy'] = outgoing_proxy
 
-    debug_mode = True
+    debug_mode = False
     if debug_cmd is not None:
-        if str(debug_cmd).lower() == "false":
-            debug_mode = False
+        if str(debug_cmd).lower() == "true":
+            debug_mode = True
 
     if verify_cmd is not None:
         if str(verify_cmd).lower() == "false":
