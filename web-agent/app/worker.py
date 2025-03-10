@@ -35,7 +35,6 @@ output_file_folder: str = os.path.join(armorcode_folder, 'output_files')
 
 max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
-env_name: Optional[str] = None
 
 max_retry: int = 3
 max_backoff_time: int = 600
@@ -76,8 +75,8 @@ def process() -> None:
             logger.info("Requesting task...")
             rate_limiter.throttle()
             get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task"
-            if len(env_name) > 0:
-                get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task?envName={env_name}"
+            if len(config_dict.get('env_name', '')) > 0:
+                get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task?envName={config_dict.get('env_name')}"
 
             logger.info("Requesting task from %s", get_task_server_url)
             get_task_response: requests.Response = requests.get(
@@ -196,8 +195,11 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
                 # If you have multiple files, you can add them here as more entries
             }
             rate_limiter.throttle()
+            upload_logs_url = f"{config_dict.get('server_url')}/api/http-teleport/upload-logs"
+            if len(config_dict.get('env_name', '')) > 0:
+                upload_logs_url = f"{config_dict.get('server_url')}/api/http-teleport/upload-logs?envName={config_dict.get('env_name')}"
             upload_result: requests.Response = requests.post(
-                f"{config_dict.get('server_url')}/api/http-teleport/upload-logs?envName={env_name}",
+                upload_logs_url,
                 headers=headers,
                 timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
                 files=files
@@ -209,7 +211,7 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
     return False
 
 
-def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
+def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
     url: str = task.get('url')
     input_data: Any = task.get('input')
     taskId: str = task.get('taskId')
