@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-from gevent import monkey;monkey.patch_all()
+from gevent import monkey;
+
+monkey.patch_all()
 import argparse
 import base64
 import gzip
@@ -19,7 +21,6 @@ from typing import Optional, Tuple, Any, Dict, Union
 
 import requests
 from gevent.pool import Pool
-
 
 # Global variables
 __version__ = "1.1.5"
@@ -51,8 +52,10 @@ def main() -> None:
     config_dict, agent_index, debug_mode = get_initial_config(parser)
 
     logger = setup_logger(agent_index, debug_mode)
-    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s, uploadToAc %s", config_dict.get('server_url'),
-                config_dict.get('verify_cert', False), config_dict.get('timeout', 10), config_dict['outgoing_proxy'], config_dict['inward_proxy'], config_dict.get('upload_to_ac', None))
+    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s, uploadToAc %s",
+                config_dict.get('server_url'),
+                config_dict.get('verify_cert', False), config_dict.get('timeout', 10), config_dict['outgoing_proxy'],
+                config_dict['inward_proxy'], config_dict.get('upload_to_ac', None))
 
     if config_dict['server_url'] is None or config_dict.get('api_key', None) is None:
         logger.error("Empty serverUrl %s", config_dict.get('server_url', True))
@@ -126,7 +129,8 @@ def process_task_async(task: Dict[str, Any]) -> None:
         # Update the task status
         update_task(result)
     except Exception as e:
-        logger.info("Unexpected error while processing task id: %s,  method: %s url: %s, error: %s", taskId, method, url, e)
+        logger.info("Unexpected error while processing task id: %s,  method: %s url: %s, error: %s", taskId, method,
+                    url, e)
         time.sleep(5)
 
 
@@ -195,15 +199,14 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
             upload_result: requests.Response = requests.post(
                 f"{config_dict.get('server_url')}/api/http-teleport/upload-logs?envName={env_name}",
                 headers=headers,
-                timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'], files=files
+                timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
+                files=files
             )
             return True
         except Exception as e:
             logger.error(f"Error zipping logs: {str(e)}")
             raise e
     return False
-
-
 
 
 def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
@@ -235,7 +238,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Running the request
         if task.get('rateLimitPerMin', None) is not None:
-            rate_limiter.set_limits(int(task.get('rateLimitPerMin')//4), 15)
+            rate_limiter.set_limits(int(task.get('rateLimitPerMin') // 4), 15)
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
 
@@ -245,7 +248,8 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
             return None
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=(15, timeout), verify=config_dict.get('verify_cert'), proxies=config_dict['inward_proxy'])
+                                                       timeout=(15, timeout), verify=config_dict.get('verify_cert'),
+                                                       proxies=config_dict['inward_proxy'])
         logger.info("Response: %d", response.status_code)
 
         data: Any = None
@@ -264,7 +268,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 logger.info("Non-chunked response, processing whole payload...")
                 ##data = response.content  # Entire response is downloaded
                 with open(temp_output_file.name, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=1024*500):
+                    for chunk in response.iter_content(chunk_size=1024 * 500):
                         f.write(chunk)
         else:
             logger.info("Status code is not 200 , response is %s", response.content)
@@ -347,7 +351,8 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
             upload_result: requests.Response = requests.post(
                 f"{config_dict.get('server_url')}/api/http-teleport/upload-result",
                 headers=headers,
-                timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'], files=files
+                timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
+                files=files
             )
             logger.info("Upload result response: %s, code: %d", upload_result.text, upload_result.status_code)
             upload_result.raise_for_status()
@@ -403,7 +408,7 @@ class RateLimiter:
             time.sleep(0.5)
 
 
-def upload_s3(temp_file,preSignedUrl: str, headers: Dict[str, Any]) -> bool:
+def upload_s3(temp_file, preSignedUrl: str, headers: Dict[str, Any]) -> bool:
     headersForS3: Dict[str, str] = {}
     if 'Content-Encoding' in headers and headers['Content-Encoding'] is not None:
         headersForS3['Content-Encoding'] = headers['Content-Encoding']
@@ -413,7 +418,8 @@ def upload_s3(temp_file,preSignedUrl: str, headers: Dict[str, Any]) -> bool:
     try:
         with open(temp_file, 'rb') as file:
             response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file,
-                                                       verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'], timeout=120)
+                                                       verify=config_dict.get('verify_cert', False),
+                                                       proxies=config_dict['outgoing_proxy'], timeout=120)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -487,6 +493,7 @@ def setup_logger(index: str, debug_mode: bool) -> logging.Logger:
     logger.info("Log folder is created %s", log_folder)
     return logger
 
+
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -500,7 +507,6 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-
 def _clean_temp_output_files() -> None:
     if os.path.exists(output_file_folder):
         try:
@@ -512,17 +518,18 @@ def _clean_temp_output_files() -> None:
         except Exception as e:
             print("Error cleaning temp output files: %s", e)
 
+
 def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
     config = {
-        "api_key": None,            # Optional[str]
-        "server_url": None,         # Optional[str]           # Default logger (None)
-        "verify_cert": True,        # Whether to verify SSL certificates
-        "timeout": 10,              # Request timeout in seconds     # Throttling (e.g., 25 requests per second)
-        "inward_proxy": None,       # Proxy for incoming requests
-        "outgoing_proxy": None,     # Proxy for outgoing requests (e.g., to ArmorCode)
-        "upload_to_ac": False,      # Whether to upload to ArmorCode
-        "env_name": None,           # Environment name (Optional[str])
-        "pool_size": 5              # Connection pool size
+        "api_key": None,  # Optional[str]
+        "server_url": None,  # Optional[str]           # Default logger (None)
+        "verify_cert": True,  # Whether to verify SSL certificates
+        "timeout": 10,  # Request timeout in seconds     # Throttling (e.g., 25 requests per second)
+        "inward_proxy": None,  # Proxy for incoming requests
+        "outgoing_proxy": None,  # Proxy for outgoing requests (e.g., to ArmorCode)
+        "upload_to_ac": False,  # Whether to upload to ArmorCode
+        "env_name": None,  # Environment name (Optional[str])
+        "pool_size": 5  # Connection pool size
     }
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
@@ -573,17 +580,17 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
             inward_proxy['https'] = inward_proxy_https
         if inward_proxy_http is not None:
             inward_proxy['http'] = inward_proxy_http
-        config_dict['inward_proxy'] = inward_proxy
+        config['inward_proxy'] = inward_proxy
 
     if outgoing_proxy_https is None and outgoing_proxy_http is None:
-        config_dict['outgoing_proxy'] = None
+        config['outgoing_proxy'] = None
     else:
         outgoing_proxy = {}
         if outgoing_proxy_https is not None:
             outgoing_proxy['https'] = outgoing_proxy_https
         if outgoing_proxy_http is not None:
             outgoing_proxy['http'] = outgoing_proxy_http
-        config_dict['outgoing_proxy'] = outgoing_proxy
+        config['outgoing_proxy'] = outgoing_proxy
 
     debug_mode = True
     if debug_cmd is not None:
@@ -611,7 +618,6 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     if config.get('api_key', None) is None:
         config['api_key'] = os.getenv("api_key")
     return config, agent_index, debug_mode
-
 
 
 if __name__ == "__main__":
