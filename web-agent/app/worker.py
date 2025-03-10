@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-from gevent import monkey;
-monkey.patch_all()
+from gevent import monkey;monkey.patch_all()
 import argparse
 import base64
 import gzip
@@ -16,7 +15,7 @@ import uuid
 from collections import deque
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
-from typing import Optional, Tuple, Any, Dict
+from typing import Optional, Tuple, Any, Dict, Union
 
 import requests
 from gevent.pool import Pool
@@ -35,130 +34,29 @@ output_file_folder: str = os.path.join(armorcode_folder, 'output_files')
 
 max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
-api_key: Optional[str] = None
-server_url: Optional[str] = None
 env_name: Optional[str] = None
 
-verify_cert: bool = True
 max_retry: int = 3
 max_backoff_time: int = 600
 min_backoff_time: int = 5
 
-timeout: int = 10
-
-outgoing_proxy = None  # this is with respect to client. proxy for calls going out of customer environment. ( to armorcode).
-inward_proxy = None
-
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
-pool_size: int = 5
-upload_to_ac = False
+config_dict: dict = None
 
 
 def main() -> None:
-    global api_key, server_url, logger, exponential_time_backoff, verify_cert, timeout, rate_limiter, inward_proxy, outgoing_proxy, upload_to_ac, env_name, pool_size
-
+    global config_dict, logger, rate_limiter
     parser = argparse.ArgumentParser()
-    parser.add_argument("--serverUrl", required=False, help="Server Url")
-    parser.add_argument("--apiKey", required=False, help="Api Key")
-    parser.add_argument("--index", required=False, help="Agent index no", default="_prod")
-    parser.add_argument("--timeout", required=False, help="timeout", default=30)
-    parser.add_argument("--verify", required=False, help="Verify Cert", default=False)
-    parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
-    parser.add_argument("--envName", required=False, help="Environment name", default="")
-
-    parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
-    parser.add_argument("--inwardProxyHttp", required=False, help="Pass inward Http proxy", default=None)
-
-    parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
-    parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--poolSize", required=False, help="Multi threading pool size", default=5)
-    parser.add_argument(
-        "--uploadToAc",
-        nargs='?',
-        type=str2bool,
-        const=True,
-        default=True,
-        help="Upload to Armorcode instead of S3 (default: True)"
-    )
-
-    args = parser.parse_args()
-
-    server_url = args.serverUrl
-    api_key = args.apiKey
-    agent_index: str = args.index
-    timeout_cmd = args.timeout
-    pool_size_cmd = args.poolSize
-    verify_cmd = args.verify
-    debug_cmd = args.debugMode
-    upload_to_ac = args.uploadToAc
-
-    inward_proxy_https = args.inwardProxyHttps
-    inward_proxy_http = args.inwardProxyHttp
-
-    outgoing_proxy_https = args.outgoingProxyHttps
-    outgoing_proxy_http = args.outgoingProxyHttp
-    env_name = args.envName
-
-    if inward_proxy_https is None and inward_proxy_http is None:
-        inward_proxy = None
-    else:
-        inward_proxy = {}
-        if inward_proxy_https is not None:
-            inward_proxy['https'] = inward_proxy_https
-        if inward_proxy_http is not None:
-            inward_proxy['http'] = inward_proxy_http
-
-    if outgoing_proxy_https is None and outgoing_proxy_http is None:
-        outgoing_proxy = None
-    else:
-        outgoing_proxy = {}
-        if outgoing_proxy_https is not None:
-            outgoing_proxy['https'] = outgoing_proxy_https
-        if outgoing_proxy_http is not None:
-            outgoing_proxy['http'] = outgoing_proxy_http
-
-    debug_mode = True
-    if debug_cmd is not None:
-        if str(debug_cmd).lower() == "false":
-            debug_mode = False
-
-    if verify_cmd is not None:
-        if str(verify_cmd).lower() == "false":
-            verify_cert = False
-
-    if timeout_cmd is not None:
-        timeout = int(timeout_cmd)
-    if pool_size_cmd is not None:
-        pool_size = int(pool_size)
-    if os.getenv('verify') is not None:
-        if str(os.getenv('verify')).lower() == "true":
-            verify_cert = True
-
-    if os.getenv("timeout") is not None:
-        timeout = int(os.getenv("timeout"))
+    config_dict, agent_index, debug_mode = get_initial_config(parser)
 
     logger = setup_logger(agent_index, debug_mode)
+    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s, uploadToAc %s", config_dict.get('server_url'),
+                config_dict.get('verify_cert', False), config_dict.get('timeout', 10), config_dict['outgoing_proxy'], config_dict['inward_proxy'], config_dict.get('upload_to_ac', None))
 
-    # Fallback to environment variables if not provided as arguments
-    if server_url is None:
-        server_url = os.getenv('server_url')
-    if api_key is None:
-        api_key = os.getenv("api_key")
-
-    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s, uploadToAc %s", server_url,
-                verify_cert, timeout, outgoing_proxy, inward_proxy, upload_to_ac)
-
-    if server_url is None or api_key is None:
-        logger.error("Empty serverUrl %s", server_url)
+    if config_dict['server_url'] is None or config_dict.get('api_key', None) is None:
+        logger.error("Empty serverUrl %s", config_dict.get('server_url', True))
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
-
-    # Creating thread pool to use other thread if one thread is blocked in I/O
-    # pool: concurrent.futures.ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-    # pool.submit(process)
-    # pool.submit(process)
-    #
-    # pool.shutdown(wait=True)
 
     # Instantiate RateLimiter for 25 requests per 15 seconds window
     rate_limiter = RateLimiter(request_limit=25, time_window=15)
@@ -168,22 +66,22 @@ def main() -> None:
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
-    pool = Pool(pool_size)
+    pool = Pool(config_dict['pool_size'])
     while True:
         try:
             # Get the next task for the agent
             logger.info("Requesting task...")
             rate_limiter.throttle()
-            get_task_server_url = f"{server_url}/api/http-teleport/get-task"
+            get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task"
             if len(env_name) > 0:
-                get_task_server_url = f"{server_url}/api/http-teleport/get-task?envName={env_name}"
+                get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task?envName={env_name}"
 
             logger.info("Requesting task from %s", get_task_server_url)
             get_task_response: requests.Response = requests.get(
                 get_task_server_url,
                 headers=headers,
-                timeout=25, verify=verify_cert,
-                proxies=outgoing_proxy
+                timeout=25, verify=config_dict.get('verify_cert', False),
+                proxies=config_dict['outgoing_proxy']
             )
 
             if get_task_response.status_code == 200:
@@ -242,10 +140,10 @@ def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
     try:
         rate_limiter.throttle()
         update_task_response: requests.Response = requests.post(
-            f"{server_url}/api/http-teleport/put-result",
+            f"{config_dict.get('server_url')}/api/http-teleport/put-result",
             headers=_get_headers(),
             json=task,
-            timeout=30, verify=verify_cert, proxies=outgoing_proxy
+            timeout=30, verify=config_dict.get('verify_cert'), proxies=config_dict['outgoing_proxy']
         )
 
         if update_task_response.status_code == 200:
@@ -268,7 +166,7 @@ def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
 
 def _get_headers() -> Dict[str, str]:
     headers: Dict[str, str] = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {config_dict['api_key']}",
         "Content-Type": "application/json"
     }
     return headers
@@ -284,7 +182,7 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
             # Update the task with the zip file information
             task['responseZipped'] = True
             headers: Dict[str, str] = {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {config_dict['api_key']}",
             }
             logger.info(f"Logs zipped successfully: {temp_output_file_zip.name}")
             files = {
@@ -295,9 +193,9 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
             }
             rate_limiter.throttle()
             upload_result: requests.Response = requests.post(
-                f"{server_url}/api/http-teleport/upload-logs?envName={env_name}",
+                f"{config_dict.get('server_url')}/api/http-teleport/upload-logs?envName={env_name}",
                 headers=headers,
-                timeout=300, verify=verify_cert, proxies=outgoing_proxy, files=files
+                timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'], files=files
             )
             return True
         except Exception as e:
@@ -347,7 +245,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
             return None
         check_and_update_encode_url(headers, url)
         response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
-                                                       timeout=(15, timeout), verify=verify_cert, proxies=inward_proxy)
+                                                       timeout=(15, timeout), verify=config_dict.get('verify_cert'), proxies=config_dict['inward_proxy'])
         logger.info("Response: %d", response.status_code)
 
         data: Any = None
@@ -398,7 +296,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
         task['statusCode'] = 500
         task['output'] = f"Network error: {str(e)}"
     except Exception as e:
-        logger.error("Unexpected error processing task %s: %s", taskId, e, exc_info=True)
+        logger.error("Unexpected error processing task %s: %s", taskId, e)
         task['statusCode'] = 500
         task['output'] = f"Error: {str(e)}"
     finally:
@@ -429,14 +327,14 @@ def zip_response(temp_file, temp_file_zip) -> bool:
 
 
 def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    if upload_to_ac:
+    if config_dict.get('upload_to_ac', True):
         try:
             success = zip_response(temp_file, temp_file_zip)
             file_path = temp_file_zip if success else temp_file
             task['responseZipped'] = success
             file_name = f"{taskId}_{uuid.uuid4().hex}.{'zip' if success else 'txt'}"
             headers: Dict[str, str] = {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {config_dict['api_key']}",
             }
             task_json = json.dumps(task)
             files = {
@@ -447,9 +345,9 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
             }
             rate_limiter.throttle()
             upload_result: requests.Response = requests.post(
-                f"{server_url}/api/http-teleport/upload-result",
+                f"{config_dict.get('server_url')}/api/http-teleport/upload-result",
                 headers=headers,
-                timeout=300, verify=verify_cert, proxies=outgoing_proxy, files=files
+                timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'], files=files
             )
             logger.info("Upload result response: %s, code: %d", upload_result.text, upload_result.status_code)
             upload_result.raise_for_status()
@@ -515,7 +413,7 @@ def upload_s3(temp_file,preSignedUrl: str, headers: Dict[str, Any]) -> bool:
     try:
         with open(temp_file, 'rb') as file:
             response: requests.Response = requests.put(preSignedUrl, headers=headersForS3, data=file,
-                                                       verify=verify_cert, proxies=outgoing_proxy, timeout=120)
+                                                       verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'], timeout=120)
             response.raise_for_status()
             logger.info('File uploaded successfully to S3')
             return True
@@ -543,10 +441,10 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
     try:
         rate_limiter.throttle()
         get_s3_url: requests.Response = requests.get(
-            f"{server_url}/api/http-teleport/upload-url",
+            f"{config_dict.get('server_url')}/api/http-teleport/upload-url",
             params=params,
             headers=_get_headers(),
-            timeout=25, verify=verify_cert, proxies=outgoing_proxy
+            timeout=25, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy']
         )
         get_s3_url.raise_for_status()
 
@@ -613,6 +511,107 @@ def _clean_temp_output_files() -> None:
                     os.remove(file_path)
         except Exception as e:
             print("Error cleaning temp output files: %s", e)
+
+def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
+    config = {
+        "api_key": None,            # Optional[str]
+        "server_url": None,         # Optional[str]           # Default logger (None)
+        "verify_cert": True,        # Whether to verify SSL certificates
+        "timeout": 10,              # Request timeout in seconds     # Throttling (e.g., 25 requests per second)
+        "inward_proxy": None,       # Proxy for incoming requests
+        "outgoing_proxy": None,     # Proxy for outgoing requests (e.g., to ArmorCode)
+        "upload_to_ac": False,      # Whether to upload to ArmorCode
+        "env_name": None,           # Environment name (Optional[str])
+        "pool_size": 5              # Connection pool size
+    }
+    parser.add_argument("--serverUrl", required=False, help="Server Url")
+    parser.add_argument("--apiKey", required=False, help="Api Key")
+    parser.add_argument("--index", required=False, help="Agent index no", default="_prod")
+    parser.add_argument("--timeout", required=False, help="timeout", default=30)
+    parser.add_argument("--verify", required=False, help="Verify Cert", default=False)
+    parser.add_argument("--debugMode", required=False, help="Enable debug Mode", default=True)
+    parser.add_argument("--envName", required=False, help="Environment name", default="")
+
+    parser.add_argument("--inwardProxyHttps", required=False, help="Pass inward Https proxy", default=None)
+    parser.add_argument("--inwardProxyHttp", required=False, help="Pass inward Http proxy", default=None)
+
+    parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
+    parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
+    parser.add_argument("--poolSize", required=False, help="Multi threading pool size", default=5)
+    parser.add_argument(
+        "--uploadToAc",
+        nargs='?',
+        type=str2bool,
+        const=True,
+        default=True,
+        help="Upload to Armorcode instead of S3 (default: True)"
+    )
+
+    args = parser.parse_args()
+
+    config['server_url'] = args.serverUrl
+    config['api_key'] = args.apiKey
+    agent_index: str = args.index
+    timeout_cmd = args.timeout
+    pool_size_cmd = args.poolSize
+    verify_cmd = args.verify
+    debug_cmd = args.debugMode
+    config['upload_to_ac'] = args.uploadToAc
+
+    inward_proxy_https = args.inwardProxyHttps
+    inward_proxy_http = args.inwardProxyHttp
+
+    outgoing_proxy_https = args.outgoingProxyHttps
+    outgoing_proxy_http = args.outgoingProxyHttp
+    config['env_name'] = args.envName
+
+    if inward_proxy_https is None and inward_proxy_http is None:
+        config['inward_proxy'] = None
+    else:
+        inward_proxy = {}
+        if inward_proxy_https is not None:
+            inward_proxy['https'] = inward_proxy_https
+        if inward_proxy_http is not None:
+            inward_proxy['http'] = inward_proxy_http
+        config_dict['inward_proxy'] = inward_proxy
+
+    if outgoing_proxy_https is None and outgoing_proxy_http is None:
+        config_dict['outgoing_proxy'] = None
+    else:
+        outgoing_proxy = {}
+        if outgoing_proxy_https is not None:
+            outgoing_proxy['https'] = outgoing_proxy_https
+        if outgoing_proxy_http is not None:
+            outgoing_proxy['http'] = outgoing_proxy_http
+        config_dict['outgoing_proxy'] = outgoing_proxy
+
+    debug_mode = True
+    if debug_cmd is not None:
+        if str(debug_cmd).lower() == "false":
+            debug_mode = False
+
+    if verify_cmd is not None:
+        if str(verify_cmd).lower() == "false":
+            config['verify_cert'] = False
+
+    if timeout_cmd is not None:
+        config['timeout'] = int(timeout_cmd)
+    if pool_size_cmd is not None:
+        config['pool_size'] = int(pool_size_cmd)
+    if os.getenv('verify') is not None:
+        if str(os.getenv('verify')).lower() == "true":
+            config['verify_cert'] = True
+
+    if os.getenv("timeout") is not None:
+        config['timeout'] = int(os.getenv("timeout"))
+
+    # Fallback to environment variables if not provided as arguments
+    if config.get('server_url', None) is None:
+        config['server_url'] = os.getenv('server_url')
+    if config.get('api_key', None) is None:
+        config['api_key'] = os.getenv("api_key")
+    return config, agent_index, debug_mode
+
 
 
 if __name__ == "__main__":
