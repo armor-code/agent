@@ -19,8 +19,8 @@ a) Message Retrieval: The Agent polls the Server over HTTPS. The Server checks a
 b) Service Call: The Agent unpacks the response from server to get the API details (URL, HTTP Method e.g. GET/POST, headers, payload) and makes the call to the on-prem service.
 
 c) Uploading Results: The Agent checks the response size received from on-prem service.
-    - If the response is > than 100KB, it makes a call to server to get a temporary pre-signed S3 URL (HTTPS with validity of 10 minutes) to upload the file. Agent then uploads the file to via S3 URL.
-    - If the response is <= than 100KB, it makes a call to server with the payload.
+    - If the response is > than 500KB, it upload the response as file to ArmorCode Server
+    - If the response is <= than 500KB, it makes a call to server with the payload.
 
 d) Response Delivery: The Agent sends a confirmation and reference to the uploaded data back to the Server over HTTPS. AC later retrieves the processed response from the Server. At each step, time-bound tokens, encryption in transit, and restricted privileges keep the system secure.
 
@@ -29,7 +29,6 @@ sequenceDiagram
   box rgba(33, 66, 00, 0.1) "ArmorCode"
     participant AC
     participant Server
-    participant S3-Bucket
   end
   box rgba(00, 00, 00, 0.1) "Customer"
     participant Agent
@@ -43,9 +42,7 @@ sequenceDiagram
     Agent->>Service (e.g. JIRA): Call Service
     Service (e.g. JIRA)-->>Agent: Service response
 
-    Agent->>Server: Get S3 Upload URL
-    Server-->>Agent: S3 signed URL with 10 minute validity
-    Agent->>S3-Bucket: Upload response file using S3 signed URL
+    Agent->>Server: Upload Larger Response to Server as File
 
     Agent-->>Server: Send response (HTTPS call)
     AC->>Server: Retrieve response
@@ -66,21 +63,17 @@ docker pull armorcode/armorcode-web-agent
 ```commandline
 docker run -d -v <folder/volume>:/tmp/armorcode armorcode/armorcode-web-agent --serverUrl='<server_url>' --apiKey='<api_key>' --timeout 30 
 ```
-6. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass this extra argument at the end
-```commandline
-  --verify=False  
-```
-7. If you have HTTPS proxy to make calls to ArmorCode API, add this argument. ex ##
+6. If you have HTTPS proxy to make calls to ArmorCode API, add this argument. ex ##
 ```commandline
   --outgoingProxyHttps='<https_proxy_to_access_armorcode>'
 ```
-8. If you have HTTPS/HTTP proxy to make calls to Internal tools, add this argument. ex ##
+7. If you have HTTPS/HTTP proxy to make calls to Internal tools, add this argument. ex ##
 ```commandline
   --inwardProxyHttps='<https_proxy_to_access_internal_tools>' --inwardProxyHttp='<http_proxy_to_access_internal_tools>'
 ```
-9. If ArmorCode S3 Url bucket is not whitelisted , add this argument:
+8. If the Agent being deployed is for certain env(Check in Armorcode Agent In Integration Page, if Service url is configured with evnName) pass envName as command line argument
 ```commandline
-  --uploadToAc
+  --envName '<envName>'
 ```
 
 [//]: # (--serverUrl='https://qa.armorcode.ai' --apiKey='afa3dfe5-11b3-4b6f-a5e2-2138c1918c29' --verify=False  --uploadToAc)
@@ -101,11 +94,6 @@ Steps for customer
 ```commandline
   python3 worker.py --serverUrl 'https://app.armorcode.com' --apiKey `<apiKey>` --index 0 --timeout 30
 ```
-4. If you don't want to do certificates validations (needed in case if VM don't have any certificates assigned and making https request) pass this extra argument at the end
-```commandline
-  --verify=False  
-```
-
 5. If you have HTTPS proxy to make calls to ArmorCode API, add this argument. ex ##
 ```commandline
   --outgoingProxyHttps='<https_proxy_to_access_armorcode>'
@@ -115,14 +103,12 @@ Steps for customer
 ```commandline
   --inwardProxyHttps='<https_proxy_to_access_internal_tools>' --inwardProxyHttp='<http_proxy_to_access_internal_tools>'
 ```
-
-7. If ArmorCode S3 Url bucket is not whitelisted , add this argument:
+7. If the Agent being deployed is for certain env(Check in Armorcode Agent In Integration Page, if Service url is configured with evnName) pass envName as command line argument
 ```commandline
-  --uploadToAc
+  --envName '<envName>'
 ```
-
-
 8. Check logs: 
 ```commandline
   cd /tmp/armorcode/log ; tail -F *
 ```
+
