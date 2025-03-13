@@ -253,7 +253,14 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
         if check_for_logs_fetch(url, task, temp_output_file_zip):
             return None
         check_and_update_encode_url(headers, url)
-        response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
+        encoded_input_data = input_data
+        if isinstance(input_data, str):
+            logging.debug("Input data is str")
+            encoded_input_data = input_data.encode('utf-8')
+        else:
+            logger.debug("Input data is not str")
+            encoded_input_data = input_data
+        response: requests.Response = requests.request(method, url, headers=headers, data=encoded_input_data, stream=True,
                                                        timeout=(15, timeout), verify=config_dict.get('verify_cert'),
                                                        proxies=config_dict['inward_proxy'])
         logger.info("Response: %d", response.status_code)
