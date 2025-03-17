@@ -243,8 +243,9 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
 
     try:
         # Running the request
-        if task.get('rateLimitPerMin', None) is not None:
-            rate_limiter.set_limits(int(task.get('rateLimitPerMin') // 4), 15)
+        if task.get('globalConfig', None) is not None:
+            global_config = task.get('globalConfig', {})
+            update_agent_config(global_config)
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
 
@@ -255,11 +256,15 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
         check_and_update_encode_url(headers, url)
         encoded_input_data = input_data
         if isinstance(input_data, str):
-            logging.debug("Input data is str")
+            logger.debug("Input data is str")
             encoded_input_data = input_data.encode('utf-8')
-        else:
-            logger.debug("Input data is not str")
+        elif isinstance(input_data, bytes):
+            logger.debug("Input data is bytes and already encoded")
             encoded_input_data = input_data
+        else:
+            logger.debug("Input data is not str or bytes %s", input_data)
+
+
         response: requests.Response = requests.request(method, url, headers=headers, data=encoded_input_data, stream=True,
                                                        timeout=(15, timeout), verify=config_dict.get('verify_cert'),
                                                        proxies=config_dict['inward_proxy'])
@@ -530,6 +535,22 @@ def _clean_temp_output_files() -> None:
                     os.remove(file_path)
         except Exception as e:
             print("Error cleaning temp output files: %s", e)
+
+def update_agent_config(global_config: dict[str, Any]) -> None:
+    global config_dict, rate_limiter
+    if global_config.get("debugMode", False):
+        logger.setLevel(logging.DEBUG)
+    if global_config.get("verifyCert", False):
+        config_dict['verify_cert'] = global_config.get("verifyCert", False)
+    if global_config.get("poolSize", 5):
+        config_dict['pool_size'] = global_config.get("poolSize", 5)
+    if global_config.get("uploadToAC") is not None:
+        config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
+    if global_config.get("rateLimitPerMin", 500):
+        rate_limiter.set_request_limit(global_config.get("rateLimitPerMin", 500)//4)
+    return
+
+
 
 
 def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
