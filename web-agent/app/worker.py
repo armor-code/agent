@@ -101,9 +101,10 @@ def process() -> None:
                 # Process the task
                 thread_pool = config_dict.get('thread_pool', None)
                 if thread_pool is None:
-                    return process_task_async(task)
-                thread_pool.wait_available()  # Wait if the thread_pool is full
-                thread_pool.spawn(process_task_async, task)  # Submit the task when free
+                    process_task_async(task)
+                else:
+                    thread_pool.wait_available()  # Wait if the thread_pool is full
+                    thread_pool.spawn(process_task_async, task)  # Submit the task when free
             elif get_task_response.status_code == 204:
                 logger.info("No task available. Waiting...")
                 time.sleep(5)
