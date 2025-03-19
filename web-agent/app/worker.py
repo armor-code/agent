@@ -68,7 +68,7 @@ def main() -> None:
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
-    pool = Pool(config_dict['thread_pool_size'])
+    # pool = Pool(config_dict['thread_pool_size'])
     while True:
         try:
             # Get the next task for the agent
@@ -97,6 +97,9 @@ def process() -> None:
                 logger.info("Received task: %s", task['taskId'])
                 task["version"] = __version__
                 # Process the task
+                pool = config_dict.get('pool', None)
+                if pool is None:
+                    pool = Pool(config_dict['thread_pool_size'])
                 pool.wait_available()  # Wait if the pool is full
                 pool.spawn(process_task_async, task)  # Submit the task when free
             elif get_task_response.status_code == 204:
@@ -548,6 +551,7 @@ def update_agent_config(global_config: dict[str, Any]) -> None:
         config_dict['verify_cert'] = global_config.get("verifyCert", False)
     if global_config.get("threadPoolSize", 5):
         config_dict['thread_pool_size'] = global_config.get("poolSize", 5)
+        config_dict['pool'] = Pool(config_dict['thread_pool_size'])
     if global_config.get("uploadToAC") is not None:
         config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
     if global_config.get("rateLimitPerMin", 500):
