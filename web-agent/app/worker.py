@@ -68,7 +68,7 @@ def main() -> None:
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
-    pool = Pool(config_dict['pool_size'])
+    pool = Pool(config_dict['thread_pool_size'])
     while True:
         try:
             # Get the next task for the agent
@@ -538,12 +538,16 @@ def _clean_temp_output_files() -> None:
 
 def update_agent_config(global_config: dict[str, Any]) -> None:
     global config_dict, rate_limiter
-    if global_config.get("debugMode", False):
-        logger.setLevel(logging.DEBUG)
+    if global_config.get("debugMode") is not None:
+        if global_config.get("debugMode", False):
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
+
     if global_config.get("verifyCert", False):
         config_dict['verify_cert'] = global_config.get("verifyCert", False)
-    if global_config.get("poolSize", 5):
-        config_dict['pool_size'] = global_config.get("poolSize", 5)
+    if global_config.get("threadPoolSize", 5):
+        config_dict['thread_pool_size'] = global_config.get("poolSize", 5)
     if global_config.get("uploadToAC") is not None:
         config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
     if global_config.get("rateLimitPerMin", 500):
@@ -563,7 +567,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         "outgoing_proxy": None,  # Proxy for outgoing requests (e.g., to ArmorCode)
         "upload_to_ac": False,  # Whether to upload to ArmorCode
         "env_name": None,  # Environment name (Optional[str])
-        "pool_size": 5  # Connection pool size
+        "thread_pool_size": 5  # Connection pool size
     }
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
@@ -638,7 +642,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     if timeout_cmd is not None:
         config['timeout'] = int(timeout_cmd)
     if pool_size_cmd is not None:
-        config['pool_size'] = int(pool_size_cmd)
+        config['thread_pool_size'] = int(pool_size_cmd)
     if os.getenv('verify') is not None:
         if str(os.getenv('verify')).lower() == "true":
             config['verify_cert'] = True
