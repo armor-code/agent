@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import threading
+
 from gevent import monkey;
 
 monkey.patch_all()
@@ -23,7 +25,7 @@ import requests
 from gevent.pool import Pool
 
 # Global variables
-__version__ = "1.1.5"
+__version__ = "1.1.6"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -68,7 +70,7 @@ def main() -> None:
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
-    pool = Pool(config_dict['pool_size'])
+    # thread_pool = Pool(config_dict['thread_pool_size'])
     while True:
         try:
             # Get the next task for the agent
@@ -97,8 +99,12 @@ def process() -> None:
                 logger.info("Received task: %s", task['taskId'])
                 task["version"] = __version__
                 # Process the task
-                pool.wait_available()  # Wait if the pool is full
-                pool.spawn(process_task_async, task)  # Submit the task when free
+                thread_pool = config_dict.get('thread_pool', None)
+                if thread_pool is None:
+                    process_task_async(task)
+                else:
+                    thread_pool.wait_available()  # Wait if the thread_pool is full
+                    thread_pool.spawn(process_task_async, task)  # Submit the task when free
             elif get_task_response.status_code == 204:
                 logger.info("No task available. Waiting...")
                 time.sleep(5)
@@ -243,8 +249,9 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
 
     try:
         # Running the request
-        if task.get('rateLimitPerMin', None) is not None:
-            rate_limiter.set_limits(int(task.get('rateLimitPerMin') // 4), 15)
+        if task.get('globalConfig', None) is not None:
+            global_config = task.get('globalConfig', {})
+            update_agent_config(global_config)
         timeout = round((expiryTime - round(time.time() * 1000)) / 1000)
         logger.info("expiry %s, %s", expiryTime, timeout)
 
@@ -253,7 +260,18 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
         if check_for_logs_fetch(url, task, temp_output_file_zip):
             return None
         check_and_update_encode_url(headers, url)
-        response: requests.Response = requests.request(method, url, headers=headers, data=input_data, stream=True,
+        encoded_input_data = input_data
+        if isinstance(input_data, str):
+            logger.debug("Input data is str")
+            encoded_input_data = input_data.encode('utf-8')
+        elif isinstance(input_data, bytes):
+            logger.debug("Input data is bytes and already encoded")
+            encoded_input_data = input_data
+        else:
+            logger.debug("Input data is not str or bytes %s", input_data)
+
+
+        response: requests.Response = requests.request(method, url, headers=headers, data=encoded_input_data, stream=True,
                                                        timeout=(15, timeout), verify=config_dict.get('verify_cert'),
                                                        proxies=config_dict['inward_proxy'])
         logger.info("Response: %d", response.status_code)
@@ -390,24 +408,25 @@ class RateLimiter:
         self.request_limit = request_limit
         self.time_window = time_window
         self.timestamps = deque()
+        self.lock = threading.Lock()
 
     def set_limits(self, request_limit: int, time_window: int):
         self.request_limit = request_limit
         self.time_window = time_window
 
     def allow_request(self) -> bool:
+        with self.lock:
+            current_time = time.time()
 
-        current_time = time.time()
+            # Remove timestamps older than the time window
+            while self.timestamps and self.timestamps[0] < current_time - self.time_window:
+                self.timestamps.popleft()
 
-        # Remove timestamps older than the time window
-        while self.timestamps and self.timestamps[0] < current_time - self.time_window:
-            self.timestamps.popleft()
-
-        # Check if we can send a new request
-        if len(self.timestamps) < self.request_limit:
-            self.timestamps.append(current_time)
-            return True
-        return False
+            # Check if we can send a new request
+            if len(self.timestamps) < self.request_limit:
+                self.timestamps.append(current_time)
+                return True
+            return False
 
     def throttle(self) -> None:
         while not self.allow_request():
@@ -524,6 +543,27 @@ def _clean_temp_output_files() -> None:
         except Exception as e:
             print("Error cleaning temp output files: %s", e)
 
+def update_agent_config(global_config: dict[str, Any]) -> None:
+    global config_dict, rate_limiter
+    if global_config.get("debugMode") is not None:
+        if global_config.get("debugMode", False):
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
+
+    if global_config.get("verifyCert", False):
+        config_dict['verify_cert'] = global_config.get("verifyCert", False)
+    if global_config.get("threadPoolSize", 5):
+        config_dict['thread_pool_size'] = global_config.get("poolSize", 5)
+        config_dict['thread_pool'] = Pool(config_dict['thread_pool_size'])
+    if global_config.get("uploadToAC") is not None:
+        config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
+    if global_config.get("rateLimitPerMin", 500):
+        rate_limiter.set_request_limit(global_config.get("rateLimitPerMin", 500)//4)
+    return
+
+
+
 
 def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
     config = {
@@ -535,7 +575,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         "outgoing_proxy": None,  # Proxy for outgoing requests (e.g., to ArmorCode)
         "upload_to_ac": False,  # Whether to upload to ArmorCode
         "env_name": None,  # Environment name (Optional[str])
-        "pool_size": 5  # Connection pool size
+        "thread_pool_size": 5  # Connection thread_pool size
     }
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
@@ -550,7 +590,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--poolSize", required=False, help="Multi threading pool size", default=5)
+    parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=5)
     parser.add_argument(
         "--uploadToAc",
         nargs='?',
@@ -610,7 +650,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     if timeout_cmd is not None:
         config['timeout'] = int(timeout_cmd)
     if pool_size_cmd is not None:
-        config['pool_size'] = int(pool_size_cmd)
+        config['thread_pool_size'] = int(pool_size_cmd)
     if os.getenv('verify') is not None:
         if str(os.getenv('verify')).lower() == "true":
             config['verify_cert'] = True
@@ -623,6 +663,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         config['server_url'] = os.getenv('server_url')
     if config.get('api_key', None) is None:
         config['api_key'] = os.getenv("api_key")
+    config['thread_pool'] = Pool(config.get('thread_pool_size', 5))
     return config, agent_index, debug_mode
 
 
