@@ -1,0 +1,142 @@
+{{/* Template function to generate deployment with the given name, API key, and other parameters */}}
+{{- define "armorcode-web-agent.deploymentTemplate" }}
+{{- $name := .name }}
+{{- $root := .root }}
+{{- $apiKey := .apiKey }}
+{{- $serverUrl := .serverUrl }}
+{{- $debugMode := .debugMode }}
+{{- $envName := .envName }}
+{{- $index := .index }}
+{{- $timeout := .timeout }}
+{{- $verify := .verify }}
+{{- $poolSize := .poolSize }}
+{{- $uploadToAc := .uploadToAc }}
+{{- $proxy := .proxy }}
+{{- $replicaCount := .replicaCount }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "armorcode-web-agent.labels" $root | nindent 4 }}
+    {{- if .instanceName }}
+    app.kubernetes.io/instance-name: {{ .instanceName }}
+    {{- end }}
+spec:
+  replicas: {{ $replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "armorcode-web-agent.selectorLabels" $root | nindent 6 }}
+      {{- if .instanceName }}
+      app.kubernetes.io/instance-name: {{ .instanceName }}
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "armorcode-web-agent.selectorLabels" $root | nindent 8 }}
+        {{- if .instanceName }}
+        app.kubernetes.io/instance-name: {{ .instanceName }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "armorcode-web-agent.serviceAccountName" $root }}
+      securityContext:
+        {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ $root.Chart.Name }}
+          securityContext:
+            {{- toYaml $root.Values.securityContext | nindent 12 }}
+          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag | default $root.Chart.AppVersion }}"
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          args:
+            - --serverUrl={{ $serverUrl }}
+            - --apiKey={{ $apiKey }}
+            {{- if $debugMode }}
+            - --debugMode={{ $debugMode }}
+            {{- end }}
+            {{- if $envName }}
+            - --envName={{ $envName }}
+            {{- end }}
+            {{- if $index }}
+            - --index={{ $index }}
+            {{- end }}
+            {{- if $timeout }}
+            - --timeout={{ $timeout }}
+            {{- end }}
+            {{- if $verify }}
+            - --verify={{ $verify }}
+            {{- end }}
+            {{- if $poolSize }}
+            - --poolSize={{ $poolSize }}
+            {{- end }}
+            {{- if $uploadToAc }}
+            - --uploadToAc={{ $uploadToAc }}
+            {{- end }}
+            {{- if and $proxy $proxy.inward $proxy.inward.http }}
+            - --inwardProxyHttp={{ $proxy.inward.http }}
+            {{- end }}
+            {{- if and $proxy $proxy.inward $proxy.inward.https }}
+            - --inwardProxyHttps={{ $proxy.inward.https }}
+            {{- end }}
+            {{- if and $proxy $proxy.outgoing $proxy.outgoing.http }}
+            - --outgoingProxyHttp={{ $proxy.outgoing.http }}
+            {{- end }}
+            {{- if and $proxy $proxy.outgoing $proxy.outgoing.https }}
+            - --outgoingProxyHttps={{ $proxy.outgoing.https }}
+            {{- end }}
+          resources:
+            {{- toYaml $root.Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: armorcode-data
+              mountPath: /tmp/armorcode
+              {{- if .instanceName }}
+              # Use instanceName as subPath to isolate logs
+              subPath: "{{ .instanceName }}"
+              {{- end }}
+      volumes:
+        - name: armorcode-data
+          {{- if $root.Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .volumeClaimName }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+
+{{/* Deploy Single Deployment if enabled */}}
+{{- if .Values.singleDeployment.enabled }}
+{{- $context := dict "root" . "name" (include "armorcode-web-agent.fullname" .) "apiKey" .Values.singleDeployment.apiKey "serverUrl" .Values.agentDefaults.serverUrl "debugMode" .Values.agentDefaults.debugMode "envName" .Values.agentDefaults.envName "index" .Values.agentDefaults.index "timeout" .Values.agentDefaults.timeout "verify" .Values.agentDefaults.verify "poolSize" .Values.agentDefaults.poolSize "uploadToAc" .Values.agentDefaults.uploadToAc "proxy" .Values.agentDefaults.proxy "replicaCount" .Values.singleDeployment.replicaCount "volumeClaimName" (include "armorcode-web-agent.fullname" .) }}
+{{- include "armorcode-web-agent.deploymentTemplate" $context }}
+{{- end }}
+
+{{/* Deploy Multiple Deployments if enabled */}}
+{{- if .Values.multipleDeployments.enabled }}
+{{- range .Values.multipleDeployments.instances }}
+{{- $deploymentName := printf "%s-%s" (include "armorcode-web-agent.fullname" $) .name }}
+{{- $serverUrl := .serverUrl | default $.Values.agentDefaults.serverUrl }}
+{{- $debugMode := .debugMode | default $.Values.agentDefaults.debugMode }}
+{{- $envName := .envName | default $.Values.agentDefaults.envName }}
+{{- $index := .name }}
+{{- $timeout := .timeout | default $.Values.agentDefaults.timeout }}
+{{- $verify := .verify | default $.Values.agentDefaults.verify }}
+{{- $poolSize := .poolSize | default $.Values.agentDefaults.poolSize }}
+{{- $uploadToAc := .uploadToAc | default $.Values.agentDefaults.uploadToAc }}
+{{- $proxy := .proxy | default $.Values.agentDefaults.proxy }}
+
+{{- $context := dict "root" $ "name" $deploymentName "apiKey" .apiKey "serverUrl" $serverUrl "debugMode" $debugMode "envName" $envName "index" $index "timeout" $timeout "verify" $verify "poolSize" $poolSize "uploadToAc" $uploadToAc "proxy" $proxy "replicaCount" 1 "instanceName" .name "volumeClaimName" $deploymentName }}
+{{- include "armorcode-web-agent.deploymentTemplate" $context }}
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,39 @@
+{{- define "armorcode-web-agent.persistentVolumeClaimTemplate" }}
+{{- $name := .name }}
+{{- $root := .root }}
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "armorcode-web-agent.labels" $root | nindent 4 }}
+    {{- if .instanceName }}
+    app.kubernetes.io/instance-name: {{ .instanceName }}
+    {{- end }}
+spec:
+  accessModes:
+    - {{ $root.Values.persistence.accessMode }}
+  {{- if $root.Values.persistence.storageClassName }}
+  storageClassName: {{ $root.Values.persistence.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $root.Values.persistence.size }}
+{{- end }}
+
+{{/* Create a PVC for single deployment */}}
+{{- if and .Values.persistence.enabled .Values.singleDeployment.enabled }}
+{{- $context := dict "root" . "name" (include "armorcode-web-agent.fullname" .) }}
+{{- include "armorcode-web-agent.persistentVolumeClaimTemplate" $context }}
+{{- end }}
+
+{{/* Create PVCs for multiple deployments */}}
+{{- if and .Values.persistence.enabled .Values.multipleDeployments.enabled }}
+{{- range .Values.multipleDeployments.instances }}
+{{- $deploymentName := printf "%s-%s" (include "armorcode-web-agent.fullname" $) .name }}
+{{- $context := dict "root" $ "name" $deploymentName "instanceName" .name }}
+{{- include "armorcode-web-agent.persistentVolumeClaimTemplate" $context }}
+---
+{{- end }}
+{{- end }}
