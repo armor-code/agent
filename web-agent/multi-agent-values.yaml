@@ -1,0 +1,119 @@
+# Example values file for deploying multiple ArmorCode Web Agents
+# Using official images from registry
+
+# Common configuration for all agents
+agentDefaults:
+  # ArmorCode server URL - common for all agents
+  serverUrl: https://app.armorcode.com
+  
+  # Enable debug mode
+  debugMode: true
+  
+  # Request timeout in seconds
+  timeout: 30
+  
+  # Whether to verify SSL certificates
+  verify: false
+  
+  # Thread pool size
+  poolSize: 5
+  
+  # Whether to upload directly to ArmorCode
+  uploadToAc: true
+
+# Turn off single deployment mode
+singleDeployment:
+  enabled: false
+
+# Enable multiple deployments mode
+multipleDeployments:
+  enabled: true
+  
+  # List of deployments with unique names and API keys
+  instances:
+    # First agent - Production environment
+    - name: prod
+      apiKey: 82305e3a-cc44-4f17-ab51-638basdas
+      envName: production
+      
+    # Second agent - Staging environment  
+    - name: staging
+      apiKey: asdasdasd2343q8732q312w
+      envName: staging
+      
+    # Third agent - Development environment
+    - name: dev
+      apiKey: asdasdas34392847238
+      envName: development
+
+# Use official image from registry
+image:
+  repository: armorcode/armorcode-web-agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Configure centralized persistence for logs and data
+persistence:
+  enabled: true
+  # ReadWriteMany allows pods on different nodes to access the same volume
+  accessMode: ReadWriteMany
+  # Recommended storage classes by platform:
+  # - AWS: "efs"
+  # - GCP: "filestore"
+  # - Azure: "azurefile"
+  # - On-prem: "nfs"
+  storageClassName: ""  # Change to appropriate RWX storage class
+  size: 5Gi  # Increased for multiple agents
+
+# Network policy configuration
+networkPolicy:
+  enabled: false
+  spec:
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: armorcode-web-agent
+    policyTypes:
+      - Egress
+    egress:
+      # Allow DNS resolution
+      - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+        ports:
+          - port: 53
+            protocol: UDP
+          - port: 53
+            protocol: TCP
+      
+      # Allow HTTPS to all external destinations
+      - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        ports:
+          - port: 443
+            protocol: TCP
+
+# Resource requests and limits
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Security context for the container
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 10001
