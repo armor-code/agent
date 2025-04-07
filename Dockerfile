@@ -1,6 +1,8 @@
-FROM alpine:3.18.3
+FROM alpine:3.21.3
 
-RUN apk add --no-cache autossh supervisor
+RUN apk update && \
+    apk upgrade && \
+	apk add --no-cache autossh supervisor
 RUN mkdir /etc/armorcode
 
 ENTRYPOINT ["supervisord", "--nodaemon", "--configuration", "/etc/armorcode/supervisord.conf"]
