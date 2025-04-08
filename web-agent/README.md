@@ -84,6 +84,9 @@ docker pull armorcode/armorcode-web-agent
 ```
 3. **Get ArmorCode Server Url**
 4. **Create a volume to store Api logs**
+```commandline
+docker volume create mydata
+```
 5. **Run the docker Image with serverURL and api key as arguments**
 ```commandline
 docker run -d -v <volume>:/tmp/armorcode armorcode/armorcode-web-agent --serverUrl='<server_url>' --apiKey='<api_key>' --timeout 30 
@@ -120,7 +123,7 @@ Alternatively, customers can set up the agent using a standalone Python script.
 
 3. **Run Command:**
 ```commandline
-  python3 worker.py --serverUrl='https://app.armorcode.com' --apiKey=`<apiKey>` --index 0 --timeout 30
+  python3 worker.py --serverUrl='https://app.armorcode.com' --apiKey=`<apiKey>`
 ```
 **Additional Configuration:**
 
