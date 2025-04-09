@@ -77,16 +77,21 @@ def process() -> None:
             # Get the next task for the agent
             logger.info("Requesting task...")
             rate_limiter.throttle()
+
+            params = {
+                'agentId' : config_dict['agent_id']
+            }
             get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task"
             if len(config_dict.get('env_name', '')) > 0:
-                get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task?envName={config_dict.get('env_name')}"
+                params['envName'] = config_dict['env_name']
 
             logger.info("Requesting task from %s", get_task_server_url)
             get_task_response: requests.Response = requests.get(
                 get_task_server_url,
                 headers=headers,
                 timeout=25, verify=config_dict.get('verify_cert', False),
-                proxies=config_dict['outgoing_proxy']
+                proxies=config_dict['outgoing_proxy'],
+                params=params
             )
 
             if get_task_response.status_code == 200:
@@ -565,6 +570,17 @@ def update_agent_config(global_config: dict[str, Any]) -> None:
         rate_limiter.set_limits(global_config.get("rateLimitPerMin", 100), 60)
     return
 
+def generate_unique_id():
+    # Get current timestamp (Unix time in seconds)
+    timestamp = int(time.time())
+
+    # Generate a random 6-character hex value
+    random_hex = uuid.uuid4().hex[:6]
+
+    # Combine timestamp and hex
+    unique_id = f"{timestamp}_{random_hex}"
+
+    return unique_id
 
 
 
@@ -607,7 +623,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     )
 
     args = parser.parse_args()
-
+    config['agent_id']  = generate_unique_id()
     config['server_url'] = args.serverUrl
     config['api_key'] = args.apiKey
     agent_index: str = args.index
