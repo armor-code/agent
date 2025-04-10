@@ -328,6 +328,8 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
         task['statusCode'] = 500
         task['output'] = f"Agent Side Error: Error: {str(e)}"
     finally:
+        temp_output_file.close()
+        temp_output_file_zip.close()
         os.unlink(temp_output_file.name)
         os.unlink(temp_output_file_zip.name)
     return task
