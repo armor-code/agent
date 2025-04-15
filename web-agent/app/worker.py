@@ -562,13 +562,14 @@ def update_agent_config(global_config: dict[str, Any]) -> None:
     if global_config.get("uploadToAC") is not None:
         config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
     if global_config.get("rateLimitPerMin", 500):
-        rate_limiter.set_request_limit(global_config.get("rateLimitPerMin", 500)//4)
+        rate_limiter.set_limits(global_config.get("rateLimitPerMin", 100), 60)
     return
 
 
 
 
 def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
+    global rate_limiter
     config = {
         "api_key": None,  # Optional[str]
         "server_url": None,  # Optional[str]           # Default logger (None)
@@ -618,7 +619,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
 
     config['upload_to_ac'] = args.uploadToAc
 
-    rate_limiter.set_request_limit(rate_limit_per_min//4)
+    rate_limiter.set_limits(rate_limit_per_min, 60)
     inward_proxy_https = args.inwardProxyHttps
     inward_proxy_http = args.inwardProxyHttp
 
