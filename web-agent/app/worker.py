@@ -63,7 +63,7 @@ def main() -> None:
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
     # Instantiate RateLimiter for 25 requests per 15 seconds window
-    rate_limiter = RateLimiter(request_limit=125, time_window=15)
+    rate_limiter = RateLimiter(request_limit=25, time_window=15)
     process()
 
 
