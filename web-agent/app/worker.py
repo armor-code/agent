@@ -49,6 +49,9 @@ config_dict: dict = None
 
 def main() -> None:
     global config_dict, logger, rate_limiter
+
+    # Instantiate RateLimiter for 25 requests per 15 seconds window
+    rate_limiter = RateLimiter(request_limit=25, time_window=15)
     parser = argparse.ArgumentParser()
     config_dict, agent_index, debug_mode = get_initial_config(parser)
 
@@ -62,8 +65,6 @@ def main() -> None:
         logger.error("Empty serverUrl %s", config_dict.get('server_url', True))
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
-    # Instantiate RateLimiter for 25 requests per 15 seconds window
-    rate_limiter = RateLimiter(request_limit=25, time_window=15)
     process()
 
 
@@ -593,6 +594,8 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
     parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=5)
+    parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=100)
+
     parser.add_argument(
         "--uploadToAc",
         nargs='?',
@@ -611,8 +614,11 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     pool_size_cmd = args.poolSize
     verify_cmd = args.verify
     debug_cmd = args.debugMode
+    rate_limit_per_min = args.rateLimitPerMin
+
     config['upload_to_ac'] = args.uploadToAc
 
+    rate_limiter.set_request_limit(rate_limit_per_min//4)
     inward_proxy_https = args.inwardProxyHttps
     inward_proxy_http = args.inwardProxyHttp
 
