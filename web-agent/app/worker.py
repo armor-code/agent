@@ -25,7 +25,7 @@ import requests
 from gevent.pool import Pool
 
 # Global variables
-__version__ = "1.1.6"
+__version__ = "1.1.7"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -49,6 +49,9 @@ config_dict: dict = None
 
 def main() -> None:
     global config_dict, logger, rate_limiter
+
+    # Instantiate RateLimiter for 25 requests per 15 seconds window
+    rate_limiter = RateLimiter(request_limit=25, time_window=15)
     parser = argparse.ArgumentParser()
     config_dict, agent_index, debug_mode = get_initial_config(parser)
 
@@ -62,8 +65,6 @@ def main() -> None:
         logger.error("Empty serverUrl %s", config_dict.get('server_url', True))
         raise ValueError("Server URL and API Key must be provided either as arguments or environment variables")
 
-    # Instantiate RateLimiter for 25 requests per 15 seconds window
-    rate_limiter = RateLimiter(request_limit=125, time_window=15)
     process()
 
 
@@ -328,6 +329,8 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
         task['statusCode'] = 500
         task['output'] = f"Agent Side Error: Error: {str(e)}"
     finally:
+        temp_output_file.close()
+        temp_output_file_zip.close()
         os.unlink(temp_output_file.name)
         os.unlink(temp_output_file_zip.name)
     return task
@@ -559,13 +562,14 @@ def update_agent_config(global_config: dict[str, Any]) -> None:
     if global_config.get("uploadToAC") is not None:
         config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
     if global_config.get("rateLimitPerMin", 500):
-        rate_limiter.set_request_limit(global_config.get("rateLimitPerMin", 500)//4)
+        rate_limiter.set_limits(global_config.get("rateLimitPerMin", 100), 60)
     return
 
 
 
 
 def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
+    global rate_limiter
     config = {
         "api_key": None,  # Optional[str]
         "server_url": None,  # Optional[str]           # Default logger (None)
@@ -591,6 +595,8 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
     parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=5)
+    parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=250)
+
     parser.add_argument(
         "--uploadToAc",
         nargs='?',
@@ -609,8 +615,11 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     pool_size_cmd = args.poolSize
     verify_cmd = args.verify
     debug_cmd = args.debugMode
+    rate_limit_per_min = args.rateLimitPerMin
+
     config['upload_to_ac'] = args.uploadToAc
 
+    rate_limiter.set_limits(rate_limit_per_min, 60)
     inward_proxy_https = args.inwardProxyHttps
     inward_proxy_http = args.inwardProxyHttp
 
