@@ -595,7 +595,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
     parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=5)
-    parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=100)
+    parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=250)
 
     parser.add_argument(
         "--uploadToAc",
