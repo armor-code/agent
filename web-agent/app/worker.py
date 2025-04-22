@@ -549,7 +549,7 @@ def _clean_temp_output_files() -> None:
                 if os.path.isfile(file_path):
                     os.remove(file_path)
         except Exception as e:
-            print("Error cleaning temp output files: %s", e)
+            print("Error cleaning temp output files")
 
 def update_agent_config(global_config: dict[str, Any]) -> None:
     global config_dict, rate_limiter
