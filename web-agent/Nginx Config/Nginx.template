@@ -1,4 +1,4 @@
-erver {
+server {
     listen <port_no>;
     server_name _;
     location / {
@@ -22,15 +22,5 @@ erver {
         proxy_set_header X-Requested-With $http_x_requested_with;
         proxy_set_header X-Api-Key $http_x_api_key;
         proxy_set_header X-Csrf-Token $http_x_csrf_token;
-        # All GitHub webhook-specific headers
-        proxy_set_header X-Hub-Signature $http_x_hub_signature;
-        proxy_set_header X-Hub-Signature-256 $http_x_hub_signature_256;
-        proxy_set_header X-GitHub-Event $http_x_github_event;
-        proxy_set_header X-GitHub-Delivery $http_x_github_delivery;
-        proxy_set_header X-GitHub-Enterprise-Host $http_x_github_enterprise_host;
-        proxy_set_header X-GitHub-Enterprise-Version $http_x_github_enterprise_version;
-        proxy_set_header X-GitHub-Hook-ID $http_x_github_hook_id;
-        proxy_set_header X-GitHub-Hook-Installation-Target-ID $http_x_github_hook_installation_target_id;
-        proxy_set_header X-GitHub-Hook-Installation-Target-Type $http_x_github_hook_installation_target_type;
     }
 }
