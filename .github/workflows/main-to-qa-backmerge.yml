@@ -8,6 +8,9 @@ jobs:
     if: github.event.pull_request.merged == true && github.event.pull_request.head.ref != 'qa'
     timeout-minutes: 2
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       - name: Set Git config
