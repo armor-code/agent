@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ACCESS_TOKEN }}
+          token: ${{ secrets.JENKINS_TOKEN }}
       - name: Set Git config
         run: |
           git config --local user.email "actions@github.com"
