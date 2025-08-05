@@ -227,7 +227,7 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
     return False
 
 
-def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
+def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
     url: str = task.get('url')
     input_data: Any = task.get('input')
     taskId: str = task.get('taskId')
@@ -472,7 +472,7 @@ def _createFolder(folder_path: str) -> None:
         except Exception as e:
             print("Error creating output folder: %s", folder_path)
     else:
-        print("Output directory already exists: %s", folder_path)
+        return
 
 
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
