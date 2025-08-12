@@ -93,7 +93,7 @@ docker volume create mydata
 ```
 5. **Run the docker Image with serverURL and api key as arguments**
 ```commandline
-docker run -d -v <volume>:/tmp/armorcode armorcode/armorcode-web-agent --serverUrl='<server_url>' --apiKey='<api_key>' --timeout 30 
+docker run -d -v <volume>:/tmp/armorcode armorcode/armorcode-web-agent --serverUrl='https://web-agent.armorcode.com' --apiKey='<api_key>' 
 ```
 **Additional Configuration:**
 
@@ -110,7 +110,7 @@ docker run -d -v <volume>:/tmp/armorcode armorcode/armorcode-web-agent --serverU
   --envName='<envName>'
 ```
 
-[//]: # (--serverUrl='https://qa.armorcode.ai' --apiKey='afa3dfe5-11b3-4b6f-a5e2-2138c1918c29' --verify=False  --uploadToAc)
+
 
 
 
@@ -128,7 +128,7 @@ Alternatively, customers can set up the agent using a standalone Python script.
 
 3. **Run Command:**
 ```commandline
-  python3 worker.py --serverUrl='https://app.armorcode.com' --apiKey=`<apiKey>`
+  python3 worker.py --serverUrl='https://web-agent.armorcode.com' --apiKey=`<apiKey>`
 ```
 **Additional Configuration:**
 
