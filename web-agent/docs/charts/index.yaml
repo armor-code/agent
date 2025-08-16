@@ -1,0 +1,25 @@
+apiVersion: v1
+entries:
+  armorcode-web-agent:
+  - apiVersion: v2
+    created: "2025-03-23T19:43:31.472891+05:30"
+    description: Helm chart for deploying ArmorCode Web Agent with support for multiple
+      API keys
+    digest: e891d5167ad527dc7dae84d58bb73b123d57c2bfac6f657c1de821be98675aa2
+    home: https://github.com/armor-code/agent
+    icon: https://raw.githubusercontent.com/armor-code/agent/main/docs/charts/icon.png
+    keywords:
+    - armorcode
+    - web-agent
+    - security
+    maintainers:
+    - email: deepakmeena@armorcode.io
+      name: Deepak Meena
+    name: armorcode-web-agent
+    sources:
+    - https://github.com/armor-code/agent
+    type: application
+    urls:
+    - https://raw.githubusercontent.com/armor-code/agent/main/web-agent/docs/charts/armorcode-web-agent-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-03-23T19:43:31.472009+05:30"
