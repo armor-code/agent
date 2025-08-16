@@ -551,7 +551,7 @@ def _clean_temp_output_files() -> None:
         except Exception as e:
             print("Error cleaning temp output files")
 
-def update_agent_config(global_config: dict[str, Any]) -> None:
+def update_agent_config(global_config: Dict[str, Any]) -> None:
     global config_dict, rate_limiter
     if global_config.get("debugMode") is not None:
         if global_config.get("debugMode", False):
@@ -584,7 +584,7 @@ def generate_unique_id():
 
 
 
-def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
+def get_initial_config(parser) -> Tuple[Dict[str, Union[Union[bool, None, str, int], Any]], str, bool]:
     global rate_limiter
     config = {
         "api_key": None,  # Optional[str]
