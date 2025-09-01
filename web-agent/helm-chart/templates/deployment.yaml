@@ -105,7 +105,7 @@ spec:
           {{- end }}
       {{- with $root.Values.nodeSelector }}
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
+        eks.amazonaws.com/compute-type: ec2
       {{- end }}
       {{- with $root.Values.affinity }}
       affinity:
