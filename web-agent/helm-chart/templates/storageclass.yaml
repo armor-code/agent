@@ -15,6 +15,6 @@ parameters:
   directoryPerms: "755"
   {{- end }}
 reclaimPolicy: {{ .Values.efs.storageClass.reclaimPolicy }}
-allowVolumeExpansion: {{ .Values.efs.storageClass.allowVolumeExpansion }}
-volumeBindingMode: {{ .Values.efs.storageClass.volumeBindingMode }}
+allowVolumeExpansion: {{ .Values.efs.storageClass.allowVolumeExpansion }}                # Reuse existing access points
+volumeBindingMode: WaitForFirstConsumer 
 {{- end }}
