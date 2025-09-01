@@ -1,0 +1,20 @@
+{{- if .Values.efs.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.efs.storageClass.name }}
+  labels:
+    {{- include "nginx-efs.labels" . | nindent 4 }}
+provisioner: {{ .Values.efs.storageClass.provisioner }}
+parameters:
+  {{- with .Values.efs.storageClass.parameters }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  fileSystemId: {{ .Values.efs.fileSystemId }}
+  {{- if .Values.efs.accessPointId }}
+  accessPointId: {{ .Values.efs.accessPointId }}
+  {{- end }}
+reclaimPolicy: {{ .Values.efs.storageClass.reclaimPolicy }}
+allowVolumeExpansion: {{ .Values.efs.storageClass.allowVolumeExpansion }}
+volumeBindingMode: {{ .Values.efs.storageClass.volumeBindingMode }}
+{{- end }}

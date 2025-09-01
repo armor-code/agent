@@ -53,18 +53,44 @@ image:
   pullPolicy: Never  # Never pull from registry, use local image only
 
 # Persistence configuration for logs and agent data
-persistence:
+
+efs:
   enabled: true
-  # ReadWriteMany allows pods on different nodes to access the same volume
-  accessMode: ReadWriteMany
-  # Empty storageClassName uses the cluster's default
-  # Recommended classes by platform:
-  # - AWS: "efs"
-  # - GCP: "filestore"
-  # - Azure: "azurefile"
-  # - On-prem: "nfs"
-  storageClassName: ""
-  size: 5Gi
+  fileSystemId: ""  # Replace with your EFS ID
+  region: "us-east-1"
+  accessPointId: ""  # Optional: Use existing access point
+  
+  # Storage Class Configuration
+  storageClass:
+    name: "efs-sc"
+    provisioner: "efs.csi.aws.com"
+    parameters:
+      provisioningMode: "efs-ap"
+      directoryPerms: "0755"
+      # basePath: "/tmp/armorcode"
+      # subPathExpr: "${.PVC.namespace}/${.PVC.name}"
+    reclaimPolicy: "Retain"
+    allowVolumeExpansion: true
+    volumeBindingMode: "Immediate"
+
+  # PVC Configuration
+  persistence:
+    enabled: true
+    storageClassName: "efs-sc"
+    accessMode: ReadWriteMany
+    size: 5Gi
+# persistence:
+#   enabled: true
+#   # ReadWriteMany allows pods on different nodes to access the same volume
+#   accessMode: ReadWriteMany
+#   # Empty storageClassName uses the cluster's default
+#   # Recommended classes by platform:
+#   # - AWS: "efs"
+#   # - GCP: "filestore"
+#   # - Azure: "azurefile"
+#   # - On-prem: "nfs"
+#   storageClassName: ""
+#   size: 5Gi
 
 # Network policy configuration
 networkPolicy:
@@ -95,3 +121,5 @@ networkPolicy:
         ports:
           - port: 443
             protocol: TCP
+serviceAccount:
+  create: true
