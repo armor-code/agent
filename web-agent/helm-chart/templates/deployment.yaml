@@ -103,7 +103,6 @@ spec:
           {{- end }}
       {{- with $root.Values.nodeSelector }}
       nodeSelector:
-        eks.amazonaws.com/compute-type: ec2
       {{- end }}
       {{- with $root.Values.affinity }}
       affinity:
