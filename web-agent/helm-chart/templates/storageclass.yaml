@@ -11,10 +11,8 @@ parameters:
   fileSystemId: {{ .Values.efs.fileSystemId }}
   {{- if .Values.efs.accessPointId }}
   accessPointId: {{ .Values.efs.accessPointId }}
-  az: us-east-1a
-  directoryPerms: "755"
   {{- end }}
 reclaimPolicy: {{ .Values.efs.storageClass.reclaimPolicy }}
-allowVolumeExpansion: {{ .Values.efs.storageClass.allowVolumeExpansion }}                # Reuse existing access points
+allowVolumeExpansion: {{ .Values.efs.storageClass.allowVolumeExpansion }}
 volumeBindingMode: WaitForFirstConsumer 
 {{- end }}
