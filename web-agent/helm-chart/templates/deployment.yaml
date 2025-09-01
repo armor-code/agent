@@ -40,12 +40,12 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "armorcode-web-agent.serviceAccountName" $root }}
-      securityContext:
-        {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
+      # securityContext:
+      #   {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ $root.Chart.Name }}
-          securityContext:
-            {{- toYaml $root.Values.securityContext | nindent 12 }}
+          # securityContext:
+          #   {{- toYaml $root.Values.securityContext | nindent 12 }}
           image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag | default $root.Chart.AppVersion }}"
           imagePullPolicy: {{ $root.Values.image.pullPolicy }}
           args:

@@ -111,9 +111,9 @@ securityContext:
       - ALL
   readOnlyRootFilesystem: false
   runAsNonRoot: true
-  runAsUser: 10001
-  runAsGroup: 10001
+  allowPrivilegeEscalation: false
 
 # Pod security context
 podSecurityContext:
-  fsGroup: 10001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
