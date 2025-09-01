@@ -9,7 +9,6 @@ parameters:
   {{- toYaml . | nindent 2 }}
   {{- end }}
   fileSystemId: {{ .Values.efs.fileSystemId }}
-  region: {{ .Values.efs.region }}
   {{- if .Values.efs.accessPointId }}
   accessPointId: {{ .Values.efs.accessPointId }}
   {{- end }}
