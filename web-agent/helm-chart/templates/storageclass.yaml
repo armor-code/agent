@@ -4,7 +4,7 @@ kind: StorageClass
 metadata:
   name: {{ .Values.efs.storageClass.name }}
   labels:
-    {{- include "nginx-efs.labels" . | nindent 4 }}
+    {{- include "armorcode-web-agent.labels" . | nindent 4 }}
 provisioner: {{ .Values.efs.storageClass.provisioner }}
 parameters:
   {{- with .Values.efs.storageClass.parameters }}
