@@ -95,7 +95,7 @@ spec:
               {{- end }}
       volumes:
         - name: armorcode-data
-          {{- if $root.Values.efs.persistence.enabled }}
+          {{- if $root.Values.ebs.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ .volumeClaimName }}
           {{- else }}

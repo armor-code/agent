@@ -13,23 +13,23 @@ metadata:
     {{- end }}
 spec:
   accessModes:
-    - {{ $root.Values.efs.persistence.accessMode }}
-  {{- if $root.Values.efs.persistence.storageClassName }}
-  storageClassName: {{ $root.Values.efs.persistence.storageClassName }}
+    - {{ $root.Values.ebs.persistence.accessMode }}
+  {{- if $root.Values.ebs.persistence.storageClassName }}
+  storageClassName: {{ $root.Values.ebs.persistence.storageClassName }}
   {{- end }}
   resources:
     requests:
-      storage: {{ $root.Values.efs.persistence.size }}
+      storage: {{ $root.Values.ebs.persistence.size }}
 {{- end }}
 
 {{/* Create a PVC for single deployment */}}
-{{- if and .Values.efs.persistence.enabled .Values.singleDeployment.enabled }}
+{{- if and .Values.ebs.persistence.enabled .Values.singleDeployment.enabled }}
 {{- $context := dict "root" . "name" (include "armorcode-web-agent.fullname" .) }}
 {{- include "armorcode-web-agent.persistentVolumeClaimTemplate" $context }}
 {{- end }}
 
 {{/* Create PVCs for multiple deployments */}}
-{{- if and .Values.efs.persistence.enabled .Values.multipleDeployments.enabled }}
+{{- if and .Values.ebs.persistence.enabled .Values.multipleDeployments.enabled }}
 {{- range .Values.multipleDeployments.instances }}
 {{- $deploymentName := printf "%s-%s" (include "armorcode-web-agent.fullname" $) .name }}
 {{- $context := dict "root" $ "name" $deploymentName "instanceName" .name }}
