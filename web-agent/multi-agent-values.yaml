@@ -1,10 +1,7 @@
-# Example values file for deploying multiple ArmorCode Web Agents
-# Using official images from registry
-
 # Common configuration for all agents
 agentDefaults:
   # ArmorCode server URL - common for all agents
-  serverUrl: https://app.armorcode.com
+  serverUrl: https://qa.armorcode.ai
   
   # Enable debug mode
   debugMode: true
@@ -20,6 +17,7 @@ agentDefaults:
   
   # Whether to upload directly to ArmorCode
   uploadToAc: true
+  envName: production
 
 # Turn off single deployment mode
 singleDeployment:
@@ -33,41 +31,47 @@ multipleDeployments:
   instances:
     # First agent - Production environment
     - name: prod
-      apiKey: 82305e3a-cc44-4f17-ab51-638basdas
-      envName: production
+      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
       
     # Second agent - Staging environment  
     - name: staging
-      apiKey: asdasdasd2343q8732q312w
-      envName: staging
+      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
       
     # Third agent - Development environment
     - name: dev
-      apiKey: asdasdas34392847238
-      envName: development
+      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
 
-# Use official image from registry
+# Use local built image
 image:
   repository: armorcode/armorcode-web-agent
   tag: latest
   pullPolicy: IfNotPresent
 
-# Configure centralized persistence for logs and data
-persistence:
+# Persistence configuration for logs and agent data
+
+ebs:
   enabled: true
-  # ReadWriteMany allows pods on different nodes to access the same volume
-  accessMode: ReadWriteMany
-  # Recommended storage classes by platform:
-  # - AWS: "efs"
-  # - GCP: "filestore"
-  # - Azure: "azurefile"
-  # - On-prem: "nfs"
-  storageClassName: ""  # Change to appropriate RWX storage class
-  size: 5Gi  # Increased for multiple agents
+  storageClass:
+    name: "ebs-sc"
+    provisioner: "ebs.csi.aws.com"
+    parameters:
+      type: gp3
+      fsType: ext4
+      encrypted: "true"
+    reclaimPolicy: "Retain"
+    allowVolumeExpansion: true
+    volumeBindingMode: "Immediate"
+
+  # PVC Configuration
+  persistence:
+    enabled: true
+    storageClassName: "ebs-sc"
+    accessMode: ReadWriteOnce
+    size: 5Gi
 
 # Network policy configuration
 networkPolicy:
-  enabled: false
+  enabled: true
   spec:
     podSelector:
       matchLabels:
@@ -95,25 +99,21 @@ networkPolicy:
           - port: 443
             protocol: TCP
 
-# Resource requests and limits
-resources:
-  limits:
-    cpu: 1000m
-    memory: 512Mi
-  requests:
-    cpu: 500m
-    memory: 512Mi
+serviceAccount:
+  create: false
 
-# Security context for the container
 securityContext:
   capabilities:
     drop:
       - ALL
   readOnlyRootFilesystem: false
   runAsNonRoot: true
-  allowPrivilegeEscalation: false
+  runAsUser: 1000
+  runAsGroup: 1000
 
 # Pod security context
 podSecurityContext:
   runAsNonRoot: true
-  allowPrivilegeEscalation: false
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
