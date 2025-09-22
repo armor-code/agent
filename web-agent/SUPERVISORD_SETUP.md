@@ -155,12 +155,3 @@ curl -I https://web-agent.armorcode.com
 ls -la /opt/armorcode/
 # worker.py should be readable by the service user
 ```
-
-## Benefits of Systemd Setup
-
-- **Automatic Restart:** Service automatically restarts if it crashes
-- **Boot Integration:** Starts automatically when system boots
-- **Centralized Logging:** All logs available via `journalctl`
-- **Resource Management:** Better control over CPU/memory usage
-- **Security:** Can run under dedicated user account with limited privileges
-- **Process Monitoring:** Easy monitoring of service status and health
