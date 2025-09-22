@@ -71,6 +71,7 @@ sequenceDiagram
 ## Agent can be set up using the following methods:
 1. **Docker**
 2. **Python Script**
+3. **Supervisord (Process Management)**
 
 ## 1. Setting up the Agent with Docker
 The **ArmorCode Web Agent** is available as a **Docker image** and can be deployed on any OS that supports Docker containers.
@@ -150,4 +151,79 @@ To check logs, run:
 
 ```commandline
   cd /tmp/armorcode/log ; tail -F *
+```
+
+## 3. Setting Up the Agent with Supervisord
+
+### Prerequisites
+
+1. **Create directories and download the agent script:**
+```commandline
+sudo mkdir -p /opt/armorcode
+sudo wget -O /opt/armorcode/worker.py 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/app/worker.py'
+```
+
+### Service Configuration
+
+**Create a systemd service file using vi/nano:**
+```commandline
+sudo vi /etc/systemd/system/armorcode-agent.service
+```
+
+**Vi editor instructions:**
+- Press `i` to enter insert mode
+- Copy and paste the configuration below
+- Press `Esc` to exit insert mode
+- Type `:wq` and press `Enter` to save and quit
+
+**Or use nano (easier for beginners):**
+```commandline
+sudo nano /etc/systemd/system/armorcode-agent.service
+```
+
+**Nano editor instructions:**
+- Copy and paste the configuration below
+- Press `Ctrl+X` to exit
+- Press `Y` to confirm save
+- Press `Enter` to confirm filename
+
+**Copy and paste the following configuration:**
+
+```ini
+[Unit]
+Description=Run Armorcode agent Python Script at Startup
+After=network.target
+
+[Service]
+WorkingDirectory=<WORKING_DIRECTORY>
+ExecStart=<PYTHON_PATH> worker.py --serverUrl=https://web-agent.armorcode.com --apiKey=<API_KEY> 
+Restart=always
+User=<USER>
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Or download the sample service file:**
+```commandline
+sudo wget -O /etc/systemd/system/armorcode-agent.service 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/armorcode-agent.service'
+```
+
+
+**Enable and start the service:**
+```commandline
+sudo systemctl daemon-reload
+sudo systemctl enable armorcode-agent.service
+sudo systemctl start armorcode-agent.service
+```
+
+**Check service status:**
+```commandline
+sudo systemctl status armorcode-agent.service
+```
+
+**View service logs:**
+```commandline
+sudo journalctl -u armorcode-agent.service -f
 ```
