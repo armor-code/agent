@@ -200,6 +200,7 @@ After=network.target
 WorkingDirectory=<WORKING_DIRECTORY>
 ExecStart=<PYTHON_PATH> worker.py --serverUrl=https://web-agent.armorcode.com --apiKey=<API_KEY> 
 Restart=always
+RestartSec=5s
 User=<USER>
 Environment=PYTHONUNBUFFERED=1
 
