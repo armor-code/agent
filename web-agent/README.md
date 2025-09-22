@@ -157,10 +157,12 @@ To check logs, run:
 
 ### Prerequisites
 
-1. **Create directories and download the agent script:**
+1. **Create directories and download required files:**
 ```commandline
 sudo mkdir -p /opt/armorcode
 sudo wget -O /opt/armorcode/worker.py 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/app/worker.py'
+wget -O requirements.txt 'https://raw.githubusercontent.com/armor-code/agent/refs/heads/main/web-agent/requirements.txt'
+pip3 install -r requirements.txt
 ```
 
 ### Service Configuration
