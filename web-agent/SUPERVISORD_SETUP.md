@@ -28,23 +28,6 @@ pip3 install -r requirements.txt
 sudo vi /etc/systemd/system/armorcode-agent.service
 ```
 
-**Vi editor instructions:**
-- Press `i` to enter insert mode
-- Copy and paste the configuration below
-- Press `Esc` to exit insert mode
-- Type `:wq` and press `Enter` to save and quit
-
-**Or use nano (easier for beginners):**
-```bash
-sudo nano /etc/systemd/system/armorcode-agent.service
-```
-
-**Nano editor instructions:**
-- Copy and paste the configuration below
-- Press `Ctrl+X` to exit
-- Press `Y` to confirm save
-- Press `Enter` to confirm filename
-
 **Copy and paste the following configuration:**
 
 ```ini
