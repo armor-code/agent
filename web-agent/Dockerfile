@@ -9,6 +9,7 @@ RUN apk update && \
     apk upgrade && \
     apk --update --no-cache add python3 py3-pip && \
     python3 -m venv /usr/src/venv && \
+    /usr/src/venv/bin/pip install --upgrade pip && \
     /usr/src/venv/bin/pip install --upgrade requests && \
     /usr/src/venv/bin/pip install --upgrade gevent && \
     /usr/src/venv/bin/pip install --upgrade urllib3 && \
