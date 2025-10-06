@@ -4,19 +4,18 @@ FROM alpine:latest
 # Set the working directory in the container
 WORKDIR /usr/src
 
-# Install supervisor
+# Install dependencies
 RUN apk update && \
     apk upgrade && \
     apk --update --no-cache add python3 py3-pip && \
+    apk --update --no-cache upgrade openssl libssl3 libcrypto3 && \
     python3 -m venv /usr/src/venv && \
     /usr/src/venv/bin/pip install --upgrade pip && \
-    /usr/src/venv/bin/pip install --upgrade requests && \
-    /usr/src/venv/bin/pip install --upgrade gevent && \
-    /usr/src/venv/bin/pip install --upgrade urllib3 && \
-    apk --update --no-cache upgrade openssl libssl3 libcrypto3 && \
-    rm -rf /var/lib/apt/lists/* && \
+    /usr/src/venv/bin/pip install --no-cache-dir requests gevent urllib3 && \
     apk del py3-pip && \
-    rm -rf /usr/lib/python3.12/ensurepip /usr/src/venv/bin/pip /usr/src/venv/bin/pip3.12 /usr/src/venv/bin/pip3 /usr/src/venv/lib/python3.12/site-packages/pip-24.2.dist-info/ /usr/src/venv/lib/python3.12/site-packages/pip/
+    rm -rf /usr/src/venv/lib/python*/site-packages/pip* && \
+    rm -rf /usr/src/venv/lib/python*/site-packages/setuptools* && \
+    find /usr/src/venv/bin -name 'pip*' -delete
 
 
 
