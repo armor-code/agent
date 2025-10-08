@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import threading
-
 from gevent import monkey;
 
 monkey.patch_all()
@@ -24,7 +22,9 @@ from pathlib import Path
 from typing import Optional, Tuple, Any, Dict, Union, List
 from urllib.parse import urlparse, urlunparse
 
+import gevent
 import requests
+from gevent.lock import Semaphore
 from gevent.pool import Pool
 
 # Global variables
@@ -69,8 +69,8 @@ def main() -> None:
     # Register shutdown handlers to flush metrics
     def shutdown_handler(signum=None, frame=None):
         logger.info("Shutting down, flushing remaining metrics...")
-        metrics_logger.flush_now()
-        logger.info("Metrics flushed. Exiting.")
+        metrics_logger.shutdown()
+        logger.info("Metrics flushed and greenlet stopped. Exiting.")
 
     atexit.register(shutdown_handler)
     signal.signal(signal.SIGTERM, shutdown_handler)
@@ -88,9 +88,29 @@ def main() -> None:
     process()
 
 
+def _get_task_from_server(headers: Dict[str, str], params: Dict[str, str], get_task_server_url: str) -> Tuple[requests.Response, float]:
+    """Execute get-task request in a separate greenlet to prevent LoopExit."""
+    get_task_start_time = time.time()
+    get_task_response: requests.Response = requests.get(
+        get_task_server_url,
+        headers=headers,
+        timeout=25, verify=config_dict.get('verify_cert', False),
+        proxies=config_dict['outgoing_proxy'],
+        params=params
+    )
+    get_task_duration_ms = (time.time() - get_task_start_time) * 1000
+    return get_task_response, get_task_duration_ms
+
+
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
+
+    # Note: Keepalive greenlet not needed because:
+    # 1. Main loop waits with .get(timeout=30) which registers a timer
+    # 2. Flush greenlet has gevent.sleep(10) which registers a timer
+    # 3. These ensure hub always has pending > 0
+
     # thread_pool = Pool(config_dict['thread_pool_size'])
     while True:
         try:
@@ -106,15 +126,16 @@ def process() -> None:
                 params['envName'] = config_dict['env_name']
 
             logger.info("Requesting task from %s", get_task_server_url)
-            get_task_start_time = time.time()
-            get_task_response: requests.Response = requests.get(
-                get_task_server_url,
-                headers=headers,
-                timeout=25, verify=config_dict.get('verify_cert', False),
-                proxies=config_dict['outgoing_proxy'],
-                params=params
-            )
-            get_task_duration_ms = (time.time() - get_task_start_time) * 1000
+
+            # Spawn get-task in separate greenlet to keep main loop active (prevents LoopExit)
+            get_task_greenlet = gevent.spawn(_get_task_from_server, headers, params, get_task_server_url)
+
+            try:
+                get_task_response, get_task_duration_ms = get_task_greenlet.get(timeout=30)
+            except gevent.Timeout:
+                logger.error("Get-task request timed out after 30 seconds")
+                gevent.sleep(5)
+                continue
 
             if get_task_response.status_code == 200:
                 thread_backoff_time = min_backoff_time
@@ -137,7 +158,7 @@ def process() -> None:
 
                 if task is None:
                     logger.info("Received empty task")
-                    time.sleep(5)
+                    gevent.sleep(5)
                     continue
 
                 logger.info("Received task: %s", task['taskId'])
@@ -147,8 +168,12 @@ def process() -> None:
                 if thread_pool is None:
                     process_task_async(task)
                 else:
-                    thread_pool.wait_available()  # Wait if the thread_pool is full
-                    thread_pool.spawn(process_task_async, task)  # Submit the task when free
+                    # Use helper greenlet to avoid blocking main loop (prevents LoopExit deadlock)
+                    def spawn_when_available(pool, task_to_process):
+                        pool.wait_available()
+                        pool.spawn(process_task_async, task_to_process)
+
+                    gevent.spawn(spawn_when_available, thread_pool, task)
             elif get_task_response.status_code == 204:
                 metrics_logger.write_metric(
                     "http.request.duration_ms",
@@ -164,7 +189,7 @@ def process() -> None:
                     }
                 )
                 logger.info("No task available. Waiting...")
-                time.sleep(5)
+                gevent.sleep(5)
             elif get_task_response.status_code > 500:
                 metrics_logger.write_metric(
                     "http.request.duration_ms",
@@ -179,7 +204,7 @@ def process() -> None:
                     }
                 )
                 logger.error("Getting 5XX error %d, increasing backoff time", get_task_response.status_code)
-                time.sleep(thread_backoff_time)
+                gevent.sleep(thread_backoff_time)
                 thread_backoff_time = min(max_backoff_time, thread_backoff_time * 2)
             else:
                 metrics_logger.write_metric(
@@ -195,14 +220,14 @@ def process() -> None:
                     }
                 )
                 logger.error("Unexpected response: %d", get_task_response.status_code)
-                time.sleep(5)
+                gevent.sleep(5)
 
         except requests.exceptions.RequestException as e:
             logger.error("Network error: %s", e)
-            time.sleep(10)  # Wait longer on network errors
+            gevent.sleep(10)  # Wait longer on network errors
         except Exception as e:
             logger.error("Unexpected error while processing: %s", e, exc_info=True)
-            time.sleep(5)
+            gevent.sleep(5)
 
 
 def process_task_async(task: Dict[str, Any]) -> None:
@@ -217,7 +242,7 @@ def process_task_async(task: Dict[str, Any]) -> None:
     except Exception as e:
         logger.info("Unexpected error while processing task id: %s,  method: %s url: %s, error: %s", taskId, method,
                     url, e)
-        time.sleep(5)
+        gevent.sleep(5)
 
 
 def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
@@ -273,7 +298,7 @@ def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
                 }
             )
 
-            time.sleep(2)
+            gevent.sleep(2)
             logger.warning("Rate limit hit while updating the task output, retrying again for task %s", task['taskId'])
             count = count + 1
             update_task(task, count)
@@ -630,7 +655,7 @@ class RateLimiter:
         self.request_limit = request_limit
         self.time_window = time_window
         self.timestamps = deque()
-        self.lock = threading.Lock()
+        self.lock = Semaphore()
 
     def set_limits(self, request_limit: int, time_window: int):
         self.request_limit = request_limit
@@ -652,18 +677,18 @@ class RateLimiter:
 
     def throttle(self) -> None:
         while not self.allow_request():
-            time.sleep(0.5)
+            gevent.sleep(0.5)
 
 
 class BufferedMetricsLogger:
-    """Buffered metrics logger for DataDog. Flushes periodically to preserve timestamps."""
+    """Buffered metrics logger for DataDog. Flushes periodically to preserve timestamps. Uses gevent primitives."""
 
     def __init__(self, metrics_file: str, flush_interval: int = 10, buffer_size: int = 1000):
         Path(metrics_file).parent.mkdir(parents=True, exist_ok=True)
         self.flush_interval = flush_interval
         self.buffer_size = buffer_size
         self.buffer: List[Dict] = []
-        self.buffer_lock = threading.Lock()
+        self.buffer_lock = Semaphore()
         self.last_flush_time = time.time()
 
         self.file_logger = logging.getLogger('metrics_file')
@@ -674,8 +699,7 @@ class BufferedMetricsLogger:
         handler.setFormatter(logging.Formatter('%(message)s'))
         self.file_logger.addHandler(handler)
 
-        self.flush_thread = threading.Thread(target=self._auto_flush_loop, daemon=True)
-        self.flush_thread.start()
+        self.flush_greenlet = gevent.spawn(self._auto_flush_loop)
 
     def write_metric(self, metric_name: str, value: float, tags: Dict[str, str] = None):
         timestamp_ms = int(time.time() * 1000)
@@ -700,14 +724,21 @@ class BufferedMetricsLogger:
 
     def _auto_flush_loop(self):
         while True:
-            time.sleep(self.flush_interval)
+            gevent.sleep(self.flush_interval)
             with self.buffer_lock:
                 if self.buffer and (time.time() - self.last_flush_time) >= self.flush_interval:
                     self._flush()
 
     def flush_now(self):
+        """Flush all buffered metrics immediately."""
         with self.buffer_lock:
             self._flush()
+
+    def shutdown(self):
+        """Flush remaining metrics and stop the flush greenlet."""
+        self.flush_now()
+        if self.flush_greenlet and not self.flush_greenlet.dead:
+            self.flush_greenlet.kill()
 
 
 def _get_url_without_params(url: str) -> str:
