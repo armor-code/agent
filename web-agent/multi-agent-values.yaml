@@ -1,11 +1,8 @@
 # Common configuration for all agents
 agentDefaults:
   # ArmorCode server URL - common for all agents
-  serverUrl: https://qa.armorcode.ai
-  
-  # Enable debug mode
-  debugMode: true
-  
+  serverUrl: https://web-agent.armorcode.ai
+
   # Request timeout in seconds
   timeout: 30
   
@@ -17,6 +14,7 @@ agentDefaults:
   
   # Whether to upload directly to ArmorCode
   uploadToAc: true
+
   envName: production
 
 # Turn off single deployment mode

@@ -85,15 +85,10 @@ You can modify these values to use your preferred container registry or image ve
 | `agentDefaults.poolSize` | Thread pool size | `5` |
 | `agentDefaults.uploadToAc` | Upload to ArmorCode | `true` |
 
-### Single Deployment
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `singleDeployment.enabled` | Enable single deployment | `true` |
-| `singleDeployment.replicaCount` | Number of replicas | `1` |
-| `singleDeployment.apiKey` | API key | `""` |
 
 ### Multiple Deployments
+Specifying how many containers we need to run
+Each container MUST use unique apiKey
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|

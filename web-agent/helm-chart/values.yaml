@@ -1,25 +1,21 @@
-# Example values file for deploying multiple ArmorCode Web Agents
-# Each agent will have its own API key
-
 # Common configuration for all agents
 agentDefaults:
   # ArmorCode server URL - common for all agents
-  serverUrl: https://qa.armorcode.ai
-  
-  # Enable debug mode
-  debugMode: true
-  
+  serverUrl: https://web-agent.armorcode.ai
+
   # Request timeout in seconds
   timeout: 30
-  
+
   # Whether to verify SSL certificates
   verify: false
-  
+
   # Thread pool size
   poolSize: 5
-  
+
   # Whether to upload directly to ArmorCode
   uploadToAc: true
+
+  envName: production
 
 # Turn off single deployment mode
 singleDeployment:
@@ -28,47 +24,38 @@ singleDeployment:
 # Enable multiple deployments mode
 multipleDeployments:
   enabled: true
-  
+
   # List of deployments with unique names and API keys
   instances:
     # First agent - Production environment
     - name: prod
-      apiKey: 82305e3a-cc44-4f17-ab51-638b24d8bbe6
-      envName: production
-      
-    # Second agent - Staging environment  
+      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
+
+    # Second agent - Staging environment
     - name: staging
-      apiKey: 82305e3a-cc44-4f17-ab51-638b24d8bbe6
-      envName: staging
-      
+      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
+
     # Third agent - Development environment
     - name: dev
-      apiKey: 82305e3a-cc44-4f17-ab51-638b24d8bbe6
-      envName: development
+      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
 
 # Use local built image
 image:
-  repository: armorcode-web-agent
-  tag: local
-  pullPolicy: Never  # Never pull from registry, use local image only
+  repository: armorcode/armorcode-web-agent
+  tag: latest
+  pullPolicy: IfNotPresent
 
 # Persistence configuration for logs and agent data
 
-efs:
+ebs:
   enabled: true
-  fileSystemId: ""  # Replace with your EFS ID
-  region: "us-east-1"
-  accessPointId: ""  # Optional: Use existing access point
-  
-  # Storage Class Configuration
   storageClass:
-    name: "efs-sc"
-    provisioner: "efs.csi.aws.com"
+    name: "ebs-sc"
+    provisioner: "ebs.csi.aws.com"
     parameters:
-      provisioningMode: "efs-ap"
-      directoryPerms: "0755"
-      # basePath: "/tmp/armorcode"
-      # subPathExpr: "${.PVC.namespace}/${.PVC.name}"
+      type: gp3
+      fsType: ext4
+      encrypted: "true"
     reclaimPolicy: "Retain"
     allowVolumeExpansion: true
     volumeBindingMode: "Immediate"
@@ -76,21 +63,9 @@ efs:
   # PVC Configuration
   persistence:
     enabled: true
-    storageClassName: "efs-sc"
-    accessMode: ReadWriteMany
+    storageClassName: "ebs-sc"
+    accessMode: ReadWriteOnce
     size: 5Gi
-# persistence:
-#   enabled: true
-#   # ReadWriteMany allows pods on different nodes to access the same volume
-#   accessMode: ReadWriteMany
-#   # Empty storageClassName uses the cluster's default
-#   # Recommended classes by platform:
-#   # - AWS: "efs"
-#   # - GCP: "filestore"
-#   # - Azure: "azurefile"
-#   # - On-prem: "nfs"
-#   storageClassName: ""
-#   size: 5Gi
 
 # Network policy configuration
 networkPolicy:
@@ -104,22 +79,39 @@ networkPolicy:
     egress:
       # Allow DNS resolution
       - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
+          - namespaceSelector: {}
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
         ports:
           - port: 53
             protocol: UDP
           - port: 53
             protocol: TCP
-      
+
       # Allow HTTPS to all external destinations
       - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
+          - ipBlock:
+              cidr: 0.0.0.0/0
         ports:
           - port: 443
             protocol: TCP
+
 serviceAccount:
-  create: true
+  create: false
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
