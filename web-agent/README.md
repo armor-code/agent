@@ -73,6 +73,8 @@ sequenceDiagram
 2. **Python Script**
 3. **Systemd Service** (see [SUPERVISORD_SETUP.md](SUPERVISORD_SETUP.md))
 
+**Note** : Please whitelist  https://web-agent.armorcode.com and check connectivity to the endpoint via ``ping web-agent.armorcode.com``
+
 ## 1. Setting up the Agent with Docker
 The **ArmorCode Web Agent** is available as a **Docker image** and can be deployed on any OS that supports Docker containers.
 
