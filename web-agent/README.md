@@ -71,6 +71,9 @@ sequenceDiagram
 ## Agent can be set up using the following methods:
 1. **Docker**
 2. **Python Script**
+3. **Systemd Service** (see [SUPERVISORD_SETUP.md](SUPERVISORD_SETUP.md))
+
+**Note** : Please whitelist  https://web-agent.armorcode.com and check connectivity to the endpoint via ``ping web-agent.armorcode.com``
 
 ## 1. Setting up the Agent with Docker
 The **ArmorCode Web Agent** is available as a **Docker image** and can be deployed on any OS that supports Docker containers.
@@ -116,6 +119,9 @@ docker run -d -v <volume>:/tmp/armorcode armorcode/armorcode-web-agent --serverU
 
 ## 2. Setting Up the Agent Using the Python Script
 Alternatively, customers can set up the agent using a standalone Python script.
+
+**Requirements:**
+- **Python 3.9 or higher** is required
 
 1. **Install Dependencies:**
 ```commandline
