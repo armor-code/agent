@@ -50,7 +50,6 @@ min_backoff_time: int = 5
 # throttling to 25 requests per seconds to avoid rate limit errors
 rate_limiter = None
 config_dict: dict = None
-metrics_logger = None
 
 # CRITICAL: Semaphore to limit concurrent teleport endpoint calls
 # Shared across all greenlets in the worker to prevent "Too many concurrent requests" errors
@@ -59,7 +58,7 @@ teleport_semaphore: Optional[Semaphore] = None
 
 
 def main() -> None:
-    global config_dict, logger, rate_limiter, metrics_logger, teleport_semaphore
+    global config_dict, logger, rate_limiter, teleport_semaphore
 
     rate_limiter = RateLimiter(request_limit=25, time_window=15)
     # Initialize semaphore to limit concurrent teleport endpoint calls (max 2)
@@ -68,22 +67,6 @@ def main() -> None:
     config_dict, agent_index, debug_mode = get_initial_config(parser)
 
     logger = setup_logger(agent_index, debug_mode)
-
-    # Initialize metrics logger
-    metrics_folder = os.path.join(armorcode_folder, 'metrics')
-    _createFolder(metrics_folder)
-    metrics_file = os.path.join(metrics_folder, f'metrics{agent_index}.json')
-    metrics_logger = BufferedMetricsLogger(metrics_file, flush_interval=10, buffer_size=1000)
-
-    # Register shutdown handlers to flush metrics
-    def shutdown_handler(signum=None, frame=None):
-        logger.info("Shutting down, flushing remaining metrics...")
-        metrics_logger.shutdown()
-        logger.info("Metrics flushed and greenlet stopped. Exiting.")
-
-    atexit.register(shutdown_handler)
-    signal.signal(signal.SIGTERM, shutdown_handler)
-    signal.signal(signal.SIGINT, shutdown_handler)
 
     logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s, uploadToAc %s",
                 config_dict.get('server_url'),
@@ -274,7 +257,8 @@ def process() -> None:
             rate_limiter.throttle()
 
             params = {
-                'agentId' : config_dict['agent_id']
+                'agentId': config_dict['agent_id'],
+                'agentVersion': __version__
             }
             get_task_server_url = f"{config_dict.get('server_url')}/api/http-teleport/get-task"
             if len(config_dict.get('env_name', '')) > 0:
@@ -296,21 +280,6 @@ def process() -> None:
                 thread_backoff_time = min_backoff_time
                 task: Optional[Dict[str, Any]] = get_task_response.json().get('data', None)
 
-                # Track get-task metric
-                metrics_logger.write_metric(
-                    "http.request.duration_ms",
-                    get_task_duration_ms,
-                    tags={
-                        "task_id": task.get('taskId', 'none') if task else "none",
-                        "operation": "get_task",
-                        "url": _get_url_without_params(get_task_server_url),
-                        "domain": urlparse(config_dict.get('server_url')).netloc,
-                        "method": "GET",
-                        "status_code": "200",
-                        "has_task": str(task is not None).lower()
-                    }
-                )
-
                 if task is None:
                     logger.info("Received empty task")
                     gevent.sleep(5)
@@ -330,50 +299,13 @@ def process() -> None:
 
                     gevent.spawn(spawn_when_available, thread_pool, task)
             elif get_task_response.status_code == 429:
-                metrics_logger.write_metric(
-                    "http.request.duration_ms",
-                    get_task_duration_ms,
-                    tags={
-                        "task_id": "none",
-                        "operation": "get_task",
-                        "url": _get_url_without_params(get_task_server_url),
-                        "domain": urlparse(config_dict.get('server_url')).netloc,
-                        "method": "GET",
-                        "status_code": "204",
-                        "has_task": "false"
-                    }
-                )
                 logger.info("No task available. Waiting...")
                 gevent.sleep(5)
             elif get_task_response.status_code > 500:
-                metrics_logger.write_metric(
-                    "http.request.duration_ms",
-                    get_task_duration_ms,
-                    tags={
-                        "task_id": "none",
-                        "operation": "get_task",
-                        "url": _get_url_without_params(get_task_server_url),
-                        "domain": urlparse(config_dict.get('server_url')).netloc,
-                        "method": "GET",
-                        "status_code": str(get_task_response.status_code)
-                    }
-                )
                 logger.error("Getting 5XX error %d, increasing backoff time", get_task_response.status_code)
                 gevent.sleep(thread_backoff_time)
                 thread_backoff_time = min(max_backoff_time, thread_backoff_time * 2)
             else:
-                metrics_logger.write_metric(
-                    "http.request.duration_ms",
-                    get_task_duration_ms,
-                    tags={
-                        "task_id": "none",
-                        "operation": "get_task",
-                        "url": _get_url_without_params(get_task_server_url),
-                        "domain": urlparse(config_dict.get('server_url')).netloc,
-                        "method": "GET",
-                        "status_code": str(get_task_response.status_code)
-                    }
-                )
                 logger.error("Unexpected response: %d", get_task_response.status_code)
                 gevent.sleep(5)
 
@@ -403,50 +335,6 @@ def process_task_async(task: Dict[str, Any]) -> None:
         gevent.sleep(5)
 
 
-def _log_update_metrics(
-    task: Dict[str, Any],
-    response: requests.Response,
-    duration_ms: float
-) -> None:
-    """
-    Log metrics for update_task operation.
-
-    Separated for testability and reuse across refactored functions.
-
-    Args:
-        task: Task dictionary with taskId
-        response: HTTP response
-        duration_ms: Request duration in milliseconds
-    """
-    tags = {
-        "task_id": task['taskId'],
-        "operation": "upload_result",
-        "url": _get_url_without_params(
-            f"{config_dict.get('server_url')}/api/http-teleport/put-result"
-        ),
-        "domain": urlparse(config_dict.get('server_url')).netloc,
-        "method": "POST",
-        "status_code": str(response.status_code),
-        "success": str(response.status_code == 200).lower()
-    }
-
-    # Add error type for failed requests
-    if response.status_code == 429:
-        tags["error_type"] = "rate_limit"
-    elif response.status_code == 504:
-        tags["error_type"] = "timeout"
-    elif response.status_code >= 500:
-        tags["error_type"] = "server_error"
-    elif response.status_code >= 400:
-        tags["error_type"] = "client_error"
-
-    metrics_logger.write_metric(
-        "http.request.duration_ms",
-        duration_ms,
-        tags=tags
-    )
-
-
 def update_task(task: Optional[Dict[str, Any]]) -> None:
     """
     Update task result to ArmorCode server.
@@ -466,7 +354,6 @@ def update_task(task: Optional[Dict[str, Any]]) -> None:
     def _make_update_request() -> requests.Response:
         """Inner function for HTTP request with semaphore protection."""
         rate_limiter.throttle()
-        update_start_time = time.time()
 
         # Acquire semaphore for the HTTP call
         with teleport_semaphore:
@@ -478,10 +365,6 @@ def update_task(task: Optional[Dict[str, Any]]) -> None:
                 verify=config_dict.get('verify_cert'),
                 proxies=config_dict['outgoing_proxy']
             )
-
-        # Metrics logging happens OUTSIDE semaphore (don't hold it longer than needed)
-        update_duration_ms = (time.time() - update_start_time) * 1000
-        _log_update_metrics(task, response, update_duration_ms)
 
         return response
 
@@ -651,21 +534,6 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
         http_duration_ms = (time.time() - http_start_time) * 1000
         logger.info("Response: %d", response.status_code)
 
-        # Track HTTP request to target URL
-        metrics_logger.write_metric(
-            "http.request.duration_ms",
-            http_duration_ms,
-            tags={
-                "task_id": taskId,
-                "operation": "target_request",
-                "url": _get_url_without_params(url),
-                "domain": urlparse(url).netloc,
-                "method": method,
-                "status_code": str(response.status_code),
-                "success": str(response.status_code < 400).lower()
-            }
-        )
-
         data: Any = None
         if response.status_code == 200:
             # Check if the response is chunked
@@ -707,16 +575,6 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
                 task['responseBase64'] = True
                 task['output'] = base64_string
 
-            # Track inline upload size
-            metrics_logger.write_metric(
-                "upload.size_bytes",
-                file_size,
-                tags={
-                    "task_id": taskId,
-                    "upload_type": "inline"
-                }
-            )
-
             return task
 
         return upload_response(temp_output_file.name, temp_output_file_zip.name, taskId, task)
@@ -729,19 +587,6 @@ def process_task(task: Dict[str, Any]) -> Optional[dict[str, Any]]:
         task['statusCode'] = 500
         task['output'] = f"Agent Side Error: Error: {str(e)}"
     finally:
-        # Track overall task processing duration
-        task_total_duration_ms = (time.time() - task_start_time) * 1000
-        metrics_logger.write_metric(
-            "task.processing_duration_ms",
-            task_total_duration_ms,
-            tags={
-                "task_id": taskId,
-                "method": method,
-                "domain": urlparse(url).netloc,
-                "http_status": str(task.get('statusCode', 'unknown'))
-            }
-        )
-
         temp_output_file.close()
         temp_output_file_zip.close()
         os.unlink(temp_output_file.name)
@@ -806,7 +651,6 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
             def _upload_result_file() -> requests.Response:
                 """Inner function for result file upload."""
                 rate_limiter.throttle()
-                upload_start_time = time.time()
 
                 # Acquire semaphore for teleport endpoint call
                 with teleport_semaphore:
@@ -818,34 +662,6 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
                         proxies=config_dict['outgoing_proxy'],
                         files=files
                     )
-
-                # Metrics logging happens OUTSIDE semaphore
-                upload_duration_ms = (time.time() - upload_start_time) * 1000
-
-                # Track file upload metrics
-                metrics_logger.write_metric(
-                    "http.request.duration_ms",
-                    upload_duration_ms,
-                    tags={
-                        "task_id": taskId,
-                        "operation": "upload_file",
-                        "url": _get_url_without_params(f"{config_dict.get('server_url')}/api/http-teleport/upload-result"),
-                        "domain": urlparse(config_dict.get('server_url')).netloc,
-                        "method": "POST",
-                        "status_code": str(response.status_code),
-                        "success": str(response.status_code < 400).lower()
-                    }
-                )
-
-                # Track upload size
-                metrics_logger.write_metric(
-                    "upload.size_bytes",
-                    file_size,
-                    tags={
-                        "task_id": taskId,
-                        "upload_type": "direct"
-                    }
-                )
 
                 return response
 
@@ -911,67 +727,6 @@ class RateLimiter:
     def throttle(self) -> None:
         while not self.allow_request():
             gevent.sleep(0.5)
-
-
-class BufferedMetricsLogger:
-    """Buffered metrics logger for DataDog. Flushes periodically to preserve timestamps. Uses gevent primitives."""
-
-    def __init__(self, metrics_file: str, flush_interval: int = 10, buffer_size: int = 1000):
-        Path(metrics_file).parent.mkdir(parents=True, exist_ok=True)
-        self.flush_interval = flush_interval
-        self.buffer_size = buffer_size
-        self.buffer: List[Dict] = []
-        self.buffer_lock = Semaphore()
-        self.last_flush_time = time.time()
-
-        self.file_logger = logging.getLogger('metrics_file')
-        self.file_logger.setLevel(logging.INFO)
-        self.file_logger.propagate = False
-
-        handler = TimedRotatingFileHandler(metrics_file, when="midnight", interval=1, backupCount=7)
-        handler.setFormatter(logging.Formatter('%(message)s'))
-        self.file_logger.addHandler(handler)
-
-        self.flush_greenlet = gevent.spawn(self._auto_flush_loop)
-
-    def write_metric(self, metric_name: str, value: float, tags: Dict[str, str] = None):
-        timestamp_ms = int(time.time() * 1000)
-        metric_event = {
-            "@timestamp": timestamp_ms,
-            "metric_name": metric_name,
-            "value": value,
-            "tags": tags or {}
-        }
-        with self.buffer_lock:
-            self.buffer.append(metric_event)
-            if len(self.buffer) >= self.buffer_size:
-                self._flush()
-
-    def _flush(self):
-        if not self.buffer:
-            return
-        for event in self.buffer:
-            self.file_logger.info(json.dumps(event))
-        self.buffer.clear()
-        self.last_flush_time = time.time()
-
-    def _auto_flush_loop(self):
-        while True:
-            gevent.sleep(self.flush_interval)
-            with self.buffer_lock:
-                if self.buffer and (time.time() - self.last_flush_time) >= self.flush_interval:
-                    self._flush()
-
-    def flush_now(self):
-        """Flush all buffered metrics immediately."""
-        with self.buffer_lock:
-            self._flush()
-
-    def shutdown(self):
-        """Flush remaining metrics and stop the flush greenlet."""
-        self.flush_now()
-        if self.flush_greenlet and not self.flush_greenlet.dead:
-            self.flush_greenlet.kill()
 
 
 def _get_url_without_params(url: str) -> str:
