@@ -51,9 +51,7 @@ min_backoff_time: int = 5
 rate_limiter = None
 config_dict: dict = None
 
-# CRITICAL: Semaphore to limit concurrent teleport endpoint calls
-# Shared across all greenlets in the worker to prevent "Too many concurrent requests" errors
-# Applies to ALL teleport endpoints: get-task, put-result, upload-logs, upload-result, upload-url
+# Limit concurrent teleport calls (max 2 per worker)
 teleport_semaphore: Optional[Semaphore] = None
 
 
@@ -61,8 +59,7 @@ def main() -> None:
     global config_dict, logger, rate_limiter, teleport_semaphore
 
     rate_limiter = RateLimiter(request_limit=25, time_window=15)
-    # Initialize semaphore to limit concurrent teleport endpoint calls (max 2)
-    teleport_semaphore = Semaphore(2)
+    teleport_semaphore = Semaphore(2)  # Max 2 concurrent teleport calls
     parser = argparse.ArgumentParser()
     config_dict, agent_index, debug_mode = get_initial_config(parser)
 
@@ -84,7 +81,6 @@ def _get_task_from_server(headers: Dict[str, str], params: Dict[str, str], get_t
     """Execute get-task request in a separate greenlet to prevent LoopExit."""
     get_task_start_time = time.time()
 
-    # Acquire semaphore for teleport endpoint call
     with teleport_semaphore:
         get_task_response: requests.Response = requests.get(
             get_task_server_url,
@@ -98,24 +94,8 @@ def _get_task_from_server(headers: Dict[str, str], params: Dict[str, str], get_t
     return get_task_response, get_task_duration_ms
 
 
-# ============================================================================
-# Retry Infrastructure - Smart 429 Handling with Semaphore
-# ============================================================================
-
 def is_concurrent_limit_error(response: requests.Response) -> bool:
-    """
-    Check if 429 response is due to concurrent request limit.
-
-    This distinguishes between:
-    - Standard rate limiting (use header delay)
-    - Concurrent request limit (use random delay)
-
-    Args:
-        response: HTTP response object
-
-    Returns:
-        True if response indicates concurrent limit error, False otherwise
-    """
+    """Check if 429 is due to concurrent request limit vs rate limit."""
     if response.status_code == 429:
         try:
             return "Too many concurrent requests" in response.text
@@ -126,55 +106,26 @@ def is_concurrent_limit_error(response: requests.Response) -> bool:
 
 
 def get_retry_delay(response: requests.Response, default_delay: int = 2) -> float:
-    """
-    Extract retry delay from response, detecting concurrent errors.
-
-    Priority order:
-    1. Check for concurrent error → random delay (0-10s)
-    2. Check retry-after header → use header value
-    3. Use default delay
-
-    Args:
-        response: HTTP response object
-        default_delay: Fallback delay in seconds (default: 2)
-
-    Returns:
-        Delay in seconds (validated, bounded)
-    """
-    # Priority 1: Check for concurrent error
+    """Get retry delay: concurrent error (0-10s) > header > default."""
     if is_concurrent_limit_error(response):
         delay = random.uniform(0, 10)
-        logger.info(f"Concurrent limit error detected, using random delay: {delay:.2f}s")
+        logger.info(f"Concurrent limit error, random delay: {delay:.2f}s")
         return delay
 
-    # Priority 2: Check retry-after header
     retry_after = response.headers.get('X-Rate-Limit-Retry-After-Seconds')
-
     if retry_after:
         try:
             delay = int(retry_after)
-
-            # Validate: must be positive
             if delay < 0:
-                logger.warning(
-                    f"Negative retry delay {delay}s in header, using default {default_delay}s"
-                )
+                logger.warning(f"Negative retry delay {delay}s, using default {default_delay}s")
                 return default_delay
-
-            # Validate: cap at 5 minutes
             if delay > 300:
-                logger.warning(
-                    f"Excessive retry delay {delay}s in header, capping at 300s"
-                )
+                logger.warning(f"Excessive retry delay {delay}s, capping at 300s")
                 return 300
-
-            logger.info(f"Using retry-after header delay: {delay}s")
+            logger.info(f"Using header delay: {delay}s")
             return delay
-
         except ValueError:
-            logger.warning(
-                f"Invalid retry delay '{retry_after}' in header, using default {default_delay}s"
-            )
+            logger.warning(f"Invalid retry delay '{retry_after}', using default {default_delay}s")
 
     return default_delay
 
@@ -184,58 +135,27 @@ def retry_on_429(
     max_retries: int = 5,
     operation_name: str = "request"
 ) -> Optional[requests.Response]:
-    """
-    Retry a function on 429 rate limit errors.
-
-    Uses X-Rate-Limit-Retry-After-Seconds header if available,
-    or random delay (0-10s) for concurrent errors,
-    otherwise uses default 2-second delay.
-
-    CRITICAL: Uses gevent.sleep() not time.sleep() to allow other greenlets
-    to run during retry delays, preventing hub from becoming empty.
-
-    Args:
-        func: Function to call (must return requests.Response)
-        max_retries: Maximum retry attempts (default: 5)
-        operation_name: Name for logging
-
-    Returns:
-        Response object, or None if unexpected error
-
-    Raises:
-        requests.exceptions.RequestException: On network errors
-    """
+    """Retry function on 429 errors. Uses gevent.sleep() for greenlet safety."""
     for attempt in range(max_retries + 1):
         try:
             response = func()
 
-            # Success or non-429 error → return immediately
             if response.status_code != 429:
                 return response
 
-            # 429 but retries exhausted → return last response
             if attempt >= max_retries:
-                logger.error(
-                    f"{operation_name} failed after {max_retries} retries due to rate limiting"
-                )
+                logger.error(f"{operation_name} failed after {max_retries} retries due to rate limiting")
                 return response
 
-            # 429 with retries remaining → sleep and retry
             delay = get_retry_delay(response)
             error_type = "concurrent limit" if is_concurrent_limit_error(response) else "rate limit"
-            logger.warning(
-                f"{operation_name} {error_type} hit "
-                f"(attempt {attempt + 1}/{max_retries + 1}), "
-                f"retrying in {delay:.2f}s"
-            )
+            logger.warning(f"{operation_name} {error_type} (attempt {attempt + 1}/{max_retries + 1}), retry in {delay:.2f}s")
             gevent.sleep(delay)
-            continue
 
         except requests.exceptions.RequestException as e:
             logger.error(f"{operation_name} request error: {e}")
             raise
 
-    # Should never reach here
     logger.error(f"{operation_name} unexpected loop exit")
     return None
 
@@ -292,12 +212,8 @@ def process() -> None:
                 if thread_pool is None:
                     process_task_async(task)
                 else:
-                    # Use helper greenlet to avoid blocking main loop (prevents LoopExit deadlock)
-                    def spawn_when_available(pool, task_to_process):
-                        pool.wait_available()
-                        pool.spawn(process_task_async, task_to_process)
-
-                    gevent.spawn(spawn_when_available, thread_pool, task)
+                    thread_pool.wait_available()
+                    thread_pool.spawn(process_task_async, task)
             elif get_task_response.status_code == 429:
                 logger.info("No task available. Waiting...")
                 gevent.sleep(5)
@@ -336,26 +252,12 @@ def process_task_async(task: Dict[str, Any]) -> None:
 
 
 def update_task(task: Optional[Dict[str, Any]]) -> None:
-    """
-    Update task result to ArmorCode server.
-
-    Retries on 429 rate limit errors up to 5 times,
-    respecting X-Rate-Limit-Retry-After-Seconds header or using
-    random delay (0-10s) for concurrent errors.
-
-    Uses global teleport_semaphore to limit concurrent calls.
-
-    Args:
-        task: Task dictionary with result data
-    """
+    """Update task result with 429 retry and semaphore protection."""
     if task is None:
         return
 
     def _make_update_request() -> requests.Response:
-        """Inner function for HTTP request with semaphore protection."""
         rate_limiter.throttle()
-
-        # Acquire semaphore for the HTTP call
         with teleport_semaphore:
             response = requests.post(
                 f"{config_dict.get('server_url')}/api/http-teleport/put-result",
@@ -368,15 +270,9 @@ def update_task(task: Optional[Dict[str, Any]]) -> None:
 
         return response
 
-    # Use retry wrapper
     try:
-        response = retry_on_429(
-            _make_update_request,
-            max_retries=5,
-            operation_name=f"update_task[{task['taskId']}]"
-        )
+        response = retry_on_429(_make_update_request, max_retries=5, operation_name=f"update_task[{task['taskId']}]")
 
-        # Handle response
         if response and response.status_code == 200:
             logger.info(f"Task {task['taskId']} updated successfully. Response: {response.text}")
         elif response and response.status_code == 504:
@@ -388,7 +284,6 @@ def update_task(task: Optional[Dict[str, Any]]) -> None:
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Network error updating task {task['taskId']}: {e}")
-        # Note: Network errors are propagated from retry_on_429, no need to retry again here
 
 
 def _get_headers() -> Dict[str, str]:
@@ -400,32 +295,14 @@ def _get_headers() -> Dict[str, str]:
 
 
 def check_for_logs_fetch(url, task, temp_output_file_zip):
-    """
-    Check if this is a logs fetch request and upload logs if so.
-
-    Includes retry on 429 rate limit errors with semaphore protection.
-
-    Args:
-        url: Request URL
-        task: Task dictionary
-        temp_output_file_zip: Temporary file for zipped logs
-
-    Returns:
-        True if logs were uploaded, False otherwise
-    """
+    """Upload agent logs if this is a fetch-logs request."""
     if 'agent/fetch-logs' in url and 'fetchLogs' in task.get('taskId'):
         try:
-            # Zip the logs_folder
             shutil.make_archive(temp_output_file_zip.name[:-4], 'zip', log_folder)
-
-            # Update the task with the zip file information
             task['responseZipped'] = True
             logger.info(f"Logs zipped successfully: {temp_output_file_zip.name}")
 
-            # Prepare upload data
-            headers: Dict[str, str] = {
-                "Authorization": f"Bearer {config_dict['api_key']}",
-            }
+            headers: Dict[str, str] = {"Authorization": f"Bearer {config_dict['api_key']}"}
             task_json = json.dumps(task)
             files = {
                 "file": (temp_output_file_zip.name, open(temp_output_file_zip.name, "rb"), "application/zip"),
@@ -436,12 +313,8 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
             if len(config_dict.get('env_name', '')) > 0:
                 upload_logs_url += f"?envName={config_dict.get('env_name')}"
 
-            # Inner function for HTTP call with semaphore protection
             def _upload_logs() -> requests.Response:
-                """Inner function for logs upload request."""
                 rate_limiter.throttle()
-
-                # Acquire semaphore for teleport endpoint call
                 with teleport_semaphore:
                     return requests.post(
                         upload_logs_url,
@@ -452,22 +325,14 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
                         files=files
                     )
 
-            # Use retry wrapper
-            response = retry_on_429(
-                _upload_logs,
-                max_retries=5,
-                operation_name="upload_logs"
-            )
+            response = retry_on_429(_upload_logs, max_retries=5, operation_name="upload_logs")
 
             if response and response.status_code == 200:
                 logger.info("Logs uploaded successfully")
                 return True
             else:
-                logger.error(
-                    f"Failed to upload logs: code={response.status_code if response else 'None'}, "
-                    f"error={response.content if response else 'None'}"
-                )
-                return True  # Still return True to maintain existing behavior
+                logger.error(f"Failed to upload logs: code={response.status_code if response else 'None'}, error={response.content if response else 'None'}")
+                return True
 
         except Exception as e:
             logger.error(f"Error zipping logs: {str(e)}")
@@ -616,43 +481,23 @@ def zip_response(temp_file, temp_file_zip) -> bool:
 
 
 def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """
-    Upload task response to ArmorCode server.
-
-    Includes retry on 429 rate limit errors with semaphore protection.
-
-    Args:
-        temp_file: Temporary file with response
-        temp_file_zip: Temporary file for zipped response
-        taskId: Task ID
-        task: Task dictionary
-
-    Returns:
-        None if uploaded to ArmorCode, task dict if using S3
-    """
+    """Upload task response with 429 retry and semaphore protection."""
     if config_dict.get('upload_to_ac', True):
         try:
             success = zip_response(temp_file, temp_file_zip)
             file_path = temp_file_zip if success else temp_file
             task['responseZipped'] = success
             file_name = f"{taskId}_{uuid.uuid4().hex}.{'zip' if success else 'txt'}"
-            file_size = os.path.getsize(file_path)
 
-            headers: Dict[str, str] = {
-                "Authorization": f"Bearer {config_dict['api_key']}",
-            }
+            headers: Dict[str, str] = {"Authorization": f"Bearer {config_dict['api_key']}"}
             task_json = json.dumps(task)
             files = {
                 "file": (file_name, open(file_path, "rb"), f"{'application/zip' if success else 'text/plain'}"),
                 "task": (None, task_json, "application/json")
             }
 
-            # Inner function for HTTP call with semaphore protection
             def _upload_result_file() -> requests.Response:
-                """Inner function for result file upload."""
                 rate_limiter.throttle()
-
-                # Acquire semaphore for teleport endpoint call
                 with teleport_semaphore:
                     response = requests.post(
                         f"{config_dict.get('server_url')}/api/http-teleport/upload-result",
@@ -662,15 +507,9 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
                         proxies=config_dict['outgoing_proxy'],
                         files=files
                     )
-
                 return response
 
-            # Use retry wrapper
-            upload_result = retry_on_429(
-                _upload_result_file,
-                max_retries=5,
-                operation_name=f"upload_result[{taskId}]"
-            )
+            upload_result = retry_on_429(_upload_result_file, max_retries=5, operation_name=f"upload_result[{taskId}]")
 
             if upload_result:
                 logger.info("Upload result response: %s, code: %d", upload_result.text, upload_result.status_code)
@@ -770,24 +609,11 @@ def _createFolder(folder_path: str) -> None:
 
 
 def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Get S3 upload URL from ArmorCode server.
-
-    Retries on 429 rate limit errors up to 5 times with semaphore protection.
-
-    Args:
-        taskId: Task ID for filename generation
-
-    Returns:
-        Tuple of (putUrl, getUrl) or (None, None) on error
-    """
+    """Get S3 upload URL with 429 retry and semaphore protection."""
     params: Dict[str, str] = {'fileName': f"{taskId}{uuid.uuid4().hex}"}
 
     def _request_upload_url() -> requests.Response:
-        """Inner function for S3 URL request with semaphore protection."""
         rate_limiter.throttle()
-
-        # Acquire semaphore for teleport endpoint call
         with teleport_semaphore:
             return requests.get(
                 f"{config_dict.get('server_url')}/api/http-teleport/upload-url",
@@ -799,11 +625,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
             )
 
     try:
-        response = retry_on_429(
-            _request_upload_url,
-            max_retries=5,
-            operation_name="get_s3_upload_url"
-        )
+        response = retry_on_429(_request_upload_url, max_retries=5, operation_name="get_s3_upload_url")
 
         if response and response.status_code == 200:
             data: Optional[Dict[str, str]] = response.json().get('data')
@@ -811,9 +633,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
                 return data.get('putUrl'), data.get('getUrl')
             logger.warning("No data in S3 upload URL response")
         else:
-            logger.warning(
-                f"Failed to get S3 URL: {response.status_code if response else 'None'}"
-            )
+            logger.warning(f"Failed to get S3 URL: {response.status_code if response else 'None'}")
 
         return None, None
 
