@@ -164,12 +164,6 @@ def process() -> None:
     headers: Dict[str, str] = _get_headers()
     thread_backoff_time: int = min_backoff_time
 
-    # Note: Keepalive greenlet not needed because:
-    # 1. Main loop waits with .get(timeout=30) which registers a timer
-    # 2. Flush greenlet has gevent.sleep(10) which registers a timer
-    # 3. These ensure hub always has pending > 0
-
-    # thread_pool = Pool(config_dict['thread_pool_size'])
     while True:
         try:
             # Get the next task for the agent
