@@ -701,8 +701,8 @@ def update_agent_config(global_config: dict[str, Any]) -> None:
 
     if global_config.get("verifyCert", False):
         config_dict['verify_cert'] = global_config.get("verifyCert", False)
-    if global_config.get("threadPoolSize", 5):
-        config_dict['thread_pool_size'] = global_config.get("poolSize", 5)
+    if global_config.get("threadPoolSize", 25):
+        config_dict['thread_pool_size'] = global_config.get("poolSize", 25)
         config_dict['thread_pool'] = Pool(config_dict['thread_pool_size'])
     if global_config.get("uploadToAC") is not None:
         config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
@@ -735,7 +735,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         "outgoing_proxy": None,  # Proxy for outgoing requests (e.g., to ArmorCode)
         "upload_to_ac": False,  # Whether to upload to ArmorCode
         "env_name": None,  # Environment name (Optional[str])
-        "thread_pool_size": 5  # Connection thread_pool size
+        "thread_pool_size": 25  # Connection thread_pool size
     }
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
@@ -750,7 +750,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=5)
+    parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=25)
     parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=250)
 
     parser.add_argument(
@@ -828,7 +828,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         config['server_url'] = os.getenv('server_url')
     if config.get('api_key', None) is None:
         config['api_key'] = os.getenv("api_key")
-    config['thread_pool'] = Pool(config.get('thread_pool_size', 5))
+    config['thread_pool'] = Pool(config.get('thread_pool_size', 25))
     return config, agent_index, debug_mode
 
 
