@@ -57,6 +57,9 @@ teleport_semaphore: Optional[Semaphore] = None
 # Timeout for teleport operations (prevents semaphore deadlock if operation hangs)
 TELEPORT_TIMEOUT = int(os.getenv('TELEPORT_TIMEOUT_SECONDS', '60'))
 
+# HTTP request timeout for teleport endpoints
+TELEPORT_REQUEST_TIMEOUT = 30
+
 
 def main() -> None:
     global config_dict, logger, rate_limiter, teleport_semaphore
@@ -204,7 +207,7 @@ def process() -> None:
             get_task_greenlet = gevent.spawn(_get_task_from_server, headers, params, get_task_server_url)
 
             try:
-                get_task_response, get_task_duration_ms = get_task_greenlet.get(timeout=30)
+                get_task_response, get_task_duration_ms = get_task_greenlet.get(timeout=TELEPORT_REQUEST_TIMEOUT)
             except gevent.Timeout:
                 logger.error("Get-task request timed out after 30 seconds")
                 delayed_retry(5)
@@ -277,7 +280,7 @@ def update_task(task: Optional[Dict[str, Any]]) -> None:
                         f"{config_dict.get('server_url')}/api/http-teleport/put-result",
                         headers=_get_headers(),
                         json=task,
-                        timeout=30,
+                        timeout=TELEPORT_REQUEST_TIMEOUT,
                         verify=config_dict.get('verify_cert'),
                         proxies=config_dict['outgoing_proxy']
                     )
@@ -337,7 +340,7 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
                             return requests.post(
                                 upload_logs_url,
                                 headers=headers,
-                                timeout=300,
+                                timeout=TELEPORT_REQUEST_TIMEOUT,
                                 verify=config_dict.get('verify_cert', False),
                                 proxies=config_dict['outgoing_proxy'],
                                 files=files
@@ -525,7 +528,7 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
                             response = requests.post(
                                 f"{config_dict.get('server_url')}/api/http-teleport/upload-result",
                                 headers=headers,
-                                timeout=300,
+                                timeout=TELEPORT_REQUEST_TIMEOUT,
                                 verify=config_dict.get('verify_cert', False),
                                 proxies=config_dict['outgoing_proxy'],
                                 files=files
