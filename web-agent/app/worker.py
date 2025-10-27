@@ -216,7 +216,6 @@ def process() -> None:
 
                 if task is None:
                     logger.info("Received empty task")
-                    delayed_retry(5)
                     continue
 
                 logger.info("Received task: %s", task['taskId'])
