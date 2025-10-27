@@ -2,7 +2,7 @@
 from gevent import monkey;
 
 monkey.patch_all()
-import gevent
+from gevent import Timeout
 import argparse
 import atexit
 import base64
@@ -30,7 +30,7 @@ from gevent.lock import Semaphore
 from gevent.pool import Pool
 
 # Global variables
-__version__ = "1.1.8"
+__version__ = "1.1.10"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -53,6 +53,9 @@ config_dict: dict = None
 
 # Limit concurrent teleport calls (max 2 per worker)
 teleport_semaphore: Optional[Semaphore] = None
+
+# Timeout for teleport operations (prevents semaphore deadlock if operation hangs)
+TELEPORT_TIMEOUT = int(os.getenv('TELEPORT_TIMEOUT_SECONDS', '60'))
 
 
 def main() -> None:
@@ -81,14 +84,19 @@ def _get_task_from_server(headers: Dict[str, str], params: Dict[str, str], get_t
     """Execute get-task request in a separate greenlet to prevent LoopExit."""
     get_task_start_time = time.time()
 
-    with teleport_semaphore:
-        get_task_response: requests.Response = requests.get(
-            get_task_server_url,
-            headers=headers,
-            timeout=25, verify=config_dict.get('verify_cert', False),
-            proxies=config_dict['outgoing_proxy'],
-            params=params
-        )
+    try:
+        with Timeout(TELEPORT_TIMEOUT):
+            with teleport_semaphore:
+                get_task_response: requests.Response = requests.get(
+                    get_task_server_url,
+                    headers=headers,
+                    timeout=25, verify=config_dict.get('verify_cert', False),
+                    proxies=config_dict['outgoing_proxy'],
+                    params=params
+                )
+    except Timeout:
+        logger.error(f"Get-task timed out after {TELEPORT_TIMEOUT}s, semaphore released")
+        raise
 
     get_task_duration_ms = (time.time() - get_task_start_time) * 1000
     return get_task_response, get_task_duration_ms
@@ -119,9 +127,9 @@ def get_retry_delay(response: requests.Response, default_delay: int = 2) -> floa
             if delay < 0:
                 logger.warning(f"Negative retry delay {delay}s, using default {default_delay}s")
                 return default_delay
-            if delay > 300:
-                logger.warning(f"Excessive retry delay {delay}s, capping at 300s")
-                return 300
+            if delay > 60:
+                logger.warning(f"Excessive retry delay {delay}s, capping at 60s")
+                return 60
             logger.info(f"Using header delay: {delay}s")
             return delay
         except ValueError:
@@ -130,25 +138,31 @@ def get_retry_delay(response: requests.Response, default_delay: int = 2) -> floa
     return default_delay
 
 
-def retry_on_429(
+def retry_request(
     func: Callable[[], requests.Response],
     max_retries: int = 5,
     operation_name: str = "request"
 ) -> Optional[requests.Response]:
-    """Retry function on 429 errors. Uses gevent.sleep() for greenlet safety."""
+    """Retry on 429 (rate limit) or 504 (timeout). 429 uses smart delay, 504 uses exponential backoff."""
     for attempt in range(max_retries + 1):
         try:
             response = func()
 
-            if response.status_code != 429:
+            if response.status_code not in (429, 504):
                 return response
 
             if attempt >= max_retries:
-                logger.error(f"{operation_name} failed after {max_retries} retries due to rate limiting")
+                logger.error(f"{operation_name} failed after {max_retries} retries")
                 return response
 
-            delay = get_retry_delay(response)
-            error_type = "concurrent limit" if is_concurrent_limit_error(response) else "rate limit"
+            # Calculate delay based on error type
+            if response.status_code == 429:
+                delay = get_retry_delay(response)
+                error_type = "concurrent limit" if is_concurrent_limit_error(response) else "rate limit"
+            else:  # 504
+                delay = min(1 * (2 ** attempt), 30)  # Exponential: 1s, 2s, 4s, 8s, 16s, 30s
+                error_type = "gateway timeout"
+
             logger.warning(f"{operation_name} {error_type} (attempt {attempt + 1}/{max_retries + 1}), retry in {delay:.2f}s")
             gevent.sleep(delay)
 
@@ -158,6 +172,12 @@ def retry_on_429(
 
     logger.error(f"{operation_name} unexpected loop exit")
     return None
+
+
+def delayed_retry(delay_seconds: int) -> None:
+    """Wait by spawning timer greenlet. Keeps hub alive during main loop delays."""
+    timer = gevent.spawn(lambda: gevent.sleep(delay_seconds))
+    timer.join()  # Wait for timer, but timer greenlet keeps hub active
 
 
 def process() -> None:
@@ -187,7 +207,7 @@ def process() -> None:
                 get_task_response, get_task_duration_ms = get_task_greenlet.get(timeout=30)
             except gevent.Timeout:
                 logger.error("Get-task request timed out after 30 seconds")
-                gevent.sleep(5)
+                delayed_retry(5)
                 continue
 
             if get_task_response.status_code == 200:
@@ -196,7 +216,7 @@ def process() -> None:
 
                 if task is None:
                     logger.info("Received empty task")
-                    gevent.sleep(5)
+                    delayed_retry(5)
                     continue
 
                 logger.info("Received task: %s", task['taskId'])
@@ -210,24 +230,24 @@ def process() -> None:
                     thread_pool.spawn(process_task_async, task)
             elif get_task_response.status_code == 429:
                 logger.info("No task available. Waiting...")
-                gevent.sleep(5)
+                delayed_retry(5)
             elif get_task_response.status_code > 500:
                 logger.error("Getting 5XX error %d, increasing backoff time", get_task_response.status_code)
-                gevent.sleep(thread_backoff_time)
+                delayed_retry(thread_backoff_time)
                 thread_backoff_time = min(max_backoff_time, thread_backoff_time * 2)
             else:
                 logger.error("Unexpected response: %d", get_task_response.status_code)
-                gevent.sleep(5)
+                delayed_retry(5)
 
         except requests.exceptions.RequestException as e:
             logger.error("Network error: %s", e)
-            gevent.sleep(10)  # Wait longer on network errors
+            delayed_retry(10)  # Wait longer on network errors
         except gevent.hub.LoopExit as e:
             logger.error("Getting LoopExit Error, resetting the thread pool")
             config_dict['thread_pool'] = Pool(config_dict['thread_pool_size'])
         except Exception as e:
             logger.error("Unexpected error while processing: %s", e, exc_info=True)
-            gevent.sleep(5)
+            delayed_retry(5)
 
 
 def process_task_async(task: Dict[str, Any]) -> None:
@@ -242,7 +262,6 @@ def process_task_async(task: Dict[str, Any]) -> None:
     except Exception as e:
         logger.info("Unexpected error while processing task id: %s,  method: %s url: %s, error: %s", taskId, method,
                     url, e)
-        gevent.sleep(5)
 
 
 def update_task(task: Optional[Dict[str, Any]]) -> None:
@@ -252,20 +271,24 @@ def update_task(task: Optional[Dict[str, Any]]) -> None:
 
     def _make_update_request() -> requests.Response:
         rate_limiter.throttle()
-        with teleport_semaphore:
-            response = requests.post(
-                f"{config_dict.get('server_url')}/api/http-teleport/put-result",
-                headers=_get_headers(),
-                json=task,
-                timeout=30,
-                verify=config_dict.get('verify_cert'),
-                proxies=config_dict['outgoing_proxy']
-            )
-
-        return response
+        try:
+            with Timeout(TELEPORT_TIMEOUT):
+                with teleport_semaphore:
+                    response = requests.post(
+                        f"{config_dict.get('server_url')}/api/http-teleport/put-result",
+                        headers=_get_headers(),
+                        json=task,
+                        timeout=30,
+                        verify=config_dict.get('verify_cert'),
+                        proxies=config_dict['outgoing_proxy']
+                    )
+            return response
+        except Timeout:
+            logger.error(f"Put-result timed out after {TELEPORT_TIMEOUT}s, semaphore released")
+            raise
 
     try:
-        response = retry_on_429(_make_update_request, max_retries=5, operation_name=f"update_task[{task['taskId']}]")
+        response = retry_request(_make_update_request, max_retries=5, operation_name=f"update_task[{task['taskId']}]")
 
         if response and response.status_code == 200:
             logger.info(f"Task {task['taskId']} updated successfully. Response: {response.text}")
@@ -309,17 +332,22 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
 
             def _upload_logs() -> requests.Response:
                 rate_limiter.throttle()
-                with teleport_semaphore:
-                    return requests.post(
-                        upload_logs_url,
-                        headers=headers,
-                        timeout=300,
-                        verify=config_dict.get('verify_cert', False),
-                        proxies=config_dict['outgoing_proxy'],
-                        files=files
-                    )
+                try:
+                    with Timeout(TELEPORT_TIMEOUT):
+                        with teleport_semaphore:
+                            return requests.post(
+                                upload_logs_url,
+                                headers=headers,
+                                timeout=300,
+                                verify=config_dict.get('verify_cert', False),
+                                proxies=config_dict['outgoing_proxy'],
+                                files=files
+                            )
+                except Timeout:
+                    logger.error(f"Upload-logs timed out after {TELEPORT_TIMEOUT}s, semaphore released")
+                    raise
 
-            response = retry_on_429(_upload_logs, max_retries=5, operation_name="upload_logs")
+            response = retry_request(_upload_logs, max_retries=5, operation_name="upload_logs")
 
             if response and response.status_code == 200:
                 logger.info("Logs uploaded successfully")
@@ -492,18 +520,23 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
 
             def _upload_result_file() -> requests.Response:
                 rate_limiter.throttle()
-                with teleport_semaphore:
-                    response = requests.post(
-                        f"{config_dict.get('server_url')}/api/http-teleport/upload-result",
-                        headers=headers,
-                        timeout=300,
-                        verify=config_dict.get('verify_cert', False),
-                        proxies=config_dict['outgoing_proxy'],
-                        files=files
-                    )
-                return response
+                try:
+                    with Timeout(TELEPORT_TIMEOUT):
+                        with teleport_semaphore:
+                            response = requests.post(
+                                f"{config_dict.get('server_url')}/api/http-teleport/upload-result",
+                                headers=headers,
+                                timeout=300,
+                                verify=config_dict.get('verify_cert', False),
+                                proxies=config_dict['outgoing_proxy'],
+                                files=files
+                            )
+                    return response
+                except Timeout:
+                    logger.error(f"Upload-result timed out after {TELEPORT_TIMEOUT}s, semaphore released")
+                    raise
 
-            upload_result = retry_on_429(_upload_result_file, max_retries=5, operation_name=f"upload_result[{taskId}]")
+            upload_result = retry_request(_upload_result_file, max_retries=5, operation_name=f"upload_result[{taskId}]")
 
             if upload_result:
                 logger.info("Upload result response: %s, code: %d", upload_result.text, upload_result.status_code)
@@ -608,18 +641,23 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
 
     def _request_upload_url() -> requests.Response:
         rate_limiter.throttle()
-        with teleport_semaphore:
-            return requests.get(
-                f"{config_dict.get('server_url')}/api/http-teleport/upload-url",
-                params=params,
-                headers=_get_headers(),
-                timeout=25,
-                verify=config_dict.get('verify_cert', False),
-                proxies=config_dict['outgoing_proxy']
-            )
+        try:
+            with Timeout(TELEPORT_TIMEOUT):
+                with teleport_semaphore:
+                    return requests.get(
+                        f"{config_dict.get('server_url')}/api/http-teleport/upload-url",
+                        params=params,
+                        headers=_get_headers(),
+                        timeout=25,
+                        verify=config_dict.get('verify_cert', False),
+                        proxies=config_dict['outgoing_proxy']
+                    )
+        except Timeout:
+            logger.error(f"Get-s3-upload-url timed out after {TELEPORT_TIMEOUT}s, semaphore released")
+            raise
 
     try:
-        response = retry_on_429(_request_upload_url, max_retries=5, operation_name="get_s3_upload_url")
+        response = retry_request(_request_upload_url, max_retries=5, operation_name="get_s3_upload_url")
 
         if response and response.status_code == 200:
             data: Optional[Dict[str, str]] = response.json().get('data')
@@ -702,7 +740,7 @@ def update_agent_config(global_config: dict[str, Any]) -> None:
     if global_config.get("verifyCert", False):
         config_dict['verify_cert'] = global_config.get("verifyCert", False)
     if global_config.get("threadPoolSize", 25):
-        config_dict['thread_pool_size'] = global_config.get("poolSize", 25)
+        config_dict['thread_pool_size'] = global_config.get("threadPoolSize", 25)
         config_dict['thread_pool'] = Pool(config_dict['thread_pool_size'])
     if global_config.get("uploadToAC") is not None:
         config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
