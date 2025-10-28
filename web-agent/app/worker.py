@@ -39,7 +39,7 @@ armorcode_folder: str = os.path.join(tempfile.gettempdir(), ac_str)
 log_folder: str = os.path.join(armorcode_folder, 'log')
 output_file_folder: str = os.path.join(armorcode_folder, 'output_files')
 
-max_file_size: int = 1024 * 1  # max_size data that would be sent in payload, more than that will send via s3
+max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
 
 max_retry: int = 3
