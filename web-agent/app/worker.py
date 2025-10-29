@@ -160,6 +160,7 @@ def process() -> None:
 
         except requests.exceptions.RequestException as e:
             logger.error("Network error: %s", e)
+            gevent.sleep(5)
         except Exception as e:
             logger.error("Unexpected error while processing: %s", e, exc_info=True)
 
