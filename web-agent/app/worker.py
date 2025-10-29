@@ -90,16 +90,6 @@ def main() -> None:
 
     process()
 
-def get_pool_status(pool):
-    """Get comprehensive status of a ThreadPool"""
-    free = pool._free_count()
-    return {
-        'max_size': pool.maxsize,
-        'current_threads': pool.size,
-        'idle_threads': free,
-        'busy_threads': pool.size - free,
-        'queued_tasks': pool._queue.qsize()
-    }
 
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
