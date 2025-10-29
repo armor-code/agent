@@ -1,0 +1,60 @@
+[Unit]
+Description=ArmorCode Metrics Shipper to DataDog
+Documentation=file:///opt/armorcode/METRICS_README.md
+Documentation=file:///opt/armorcode/SHIPPER_README.md
+After=network-online.target
+Wants=network-online.target
+PartOf=armorcode-worker.service
+
+[Service]
+Type=simple
+User=armorcode
+Group=armorcode
+WorkingDirectory=/opt/armorcode
+
+# Main process
+ExecStart=/usr/bin/python3 /opt/armorcode/metrics_shipper.py
+
+# Environment configuration
+EnvironmentFile=/etc/armorcode/metrics_shipper.env
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+# Graceful shutdown
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGTERM
+
+# Resource limits
+MemoryMax=256M
+MemoryHigh=192M
+CPUQuota=25%
+TasksMax=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp/armorcode/log/metrics
+ReadWritePaths=/var/lib/armorcode
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=metrics-shipper
+SyslogLevel=info
+
+[Install]
+WantedBy=multi-user.target

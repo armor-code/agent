@@ -1,0 +1,82 @@
+{
+  "title": "ArmorCode Agent - Simple Metrics",
+  "description": "Average calls per operation (5 min window)",
+  "layout_type": "ordered",
+  "template_variables": [],
+  "widgets": [
+    {
+      "id": 0,
+      "definition": {
+        "title": "Average Calls Per Operation (5 min window)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "avg:armorcode.http.request.duration_ms{*} by {operation}.rollup(avg, 300)"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "order_by": "values",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "line"
+          }
+        ],
+        "yaxis": {
+          "scale": "linear",
+          "include_zero": true,
+          "min": "auto",
+          "max": "auto"
+        }
+      }
+    },
+    {
+      "id": 1,
+      "definition": {
+        "title": "Total Calls Count by Operation",
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "data_source": "metrics",
+                "name": "query1",
+                "query": "sum:armorcode.http.request.duration_ms{*} by {operation}.as_count().rollup(sum, 300)"
+              }
+            ],
+            "response_format": "timeseries",
+            "style": {
+              "palette": "dog_classic",
+              "order_by": "values",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "bars"
+          }
+        ],
+        "yaxis": {
+          "scale": "linear",
+          "include_zero": true,
+          "min": "auto",
+          "max": "auto"
+        }
+      }
+    }
+  ]
+}
