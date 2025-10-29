@@ -2,9 +2,9 @@
 
 
 from gevent import monkey;
-
-import threading
 monkey.patch_all()
+import gevent
+import threading
 import argparse
 import atexit
 import base64
@@ -90,6 +90,16 @@ def main() -> None:
 
     process()
 
+def get_pool_status(pool):
+    """Get comprehensive status of a ThreadPool"""
+    free = pool._free_count()
+    return {
+        'max_size': pool.maxsize,
+        'current_threads': pool.size,
+        'idle_threads': free,
+        'busy_threads': pool.size - free,
+        'queued_tasks': pool._queue.qsize()
+    }
 
 def process() -> None:
     headers: Dict[str, str] = _get_headers()
@@ -129,7 +139,6 @@ def process() -> None:
 
                 if task is None:
                     logger.info("Received empty task")
-                    time.sleep(5)  # Wait before requesting next task
                     continue
 
                 logger.info("Received task: %s", task['taskId'])
@@ -139,29 +148,29 @@ def process() -> None:
                 if thread_pool is None:
                     process_task_async(task)
                 else:
-                    thread_pool.wait_available()  # Wait if the thread_pool is full
+                    try:
+                        thread_pool.wait_available()  # Wait if the thread_pool is full
+                    except Exception as e:
+                        logger.error("Error while getting new thread status of thread pool " + get_pool_status(thread_pool) )
+                        config_dict['thread_pool'] = Pool(config_dict.get('thread_pool_size', 5))
+
                     thread_pool.spawn(process_task_async, task)  # Submit the task when free
             elif get_task_response.status_code == 204:
                 _log_get_task_metric(get_task_duration_ms, get_task_server_url, 204)
                 logger.info("No task available. Waiting...")
-                time.sleep(5)
             elif get_task_response.status_code > 500:
                 _log_get_task_metric(get_task_duration_ms, get_task_server_url, get_task_response.status_code)
                 logger.error("Getting 5XX error %d, increasing backoff time", get_task_response.status_code)
-                time.sleep(thread_backoff_time)
+                gevent.sleep(thread_backoff_time)
                 thread_backoff_time = min(max_backoff_time, thread_backoff_time * 2)
             else:
                 _log_get_task_metric(get_task_duration_ms, get_task_server_url, get_task_response.status_code)
                 logger.error("Unexpected response: %d", get_task_response.status_code)
-                time.sleep(5)
 
         except requests.exceptions.RequestException as e:
             logger.error("Network error: %s", e)
-            time.sleep(10)  # Wait longer on network errors
         except Exception as e:
             logger.error("Unexpected error while processing: %s", e, exc_info=True)
-            time.sleep(5)
-
 
 def process_task_async(task: Dict[str, Any]) -> None:
     url: str = task.get('url')
@@ -175,7 +184,6 @@ def process_task_async(task: Dict[str, Any]) -> None:
     except Exception as e:
         logger.info("Unexpected error while processing task id: %s,  method: %s url: %s, error: %s", taskId, method,
                     url, e)
-        time.sleep(5)
 
 
 def _log_update_metrics(
@@ -243,7 +251,7 @@ def update_task(task: Optional[Dict[str, Any]], count: int = 0) -> None:
             logger.info("Task %s updated successfully. Response: %s", task['taskId'],
                         update_task_response.text)
         elif update_task_response.status_code == 429 or update_task_response.status_code == 504:
-            time.sleep(2)
+            gevent.sleep(2)
             logger.warning("Rate limit hit while updating the task output, retrying again for task %s", task['taskId'])
             count = count + 1
             update_task(task, count)
@@ -560,7 +568,7 @@ class RateLimiter:
 
     def throttle(self) -> None:
         while not self.allow_request():
-            time.sleep(0.5)
+            gevent.sleep(0.5)
 
 
 class BufferedMetricsLogger:
