@@ -151,7 +151,7 @@ def process() -> None:
                     try:
                         thread_pool.wait_available()  # Wait if the thread_pool is full
                     except Exception as e:
-                        logger.error("Error while getting new thread status of thread pool " )
+                        logger.error("Error while getting new thread status of thread pool ", e, exc_info=True)
                         config_dict['thread_pool'] = Pool(config_dict.get('thread_pool_size', 5))
                         thread_pool = config_dict['thread_pool']
 
