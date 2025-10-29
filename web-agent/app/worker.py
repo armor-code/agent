@@ -151,8 +151,9 @@ def process() -> None:
                     try:
                         thread_pool.wait_available()  # Wait if the thread_pool is full
                     except Exception as e:
-                        logger.error("Error while getting new thread status of thread pool " + get_pool_status(thread_pool) )
+                        logger.error("Error while getting new thread status of thread pool " )
                         config_dict['thread_pool'] = Pool(config_dict.get('thread_pool_size', 5))
+                        thread_pool = config_dict['thread_pool']
 
                     thread_pool.spawn(process_task_async, task)  # Submit the task when free
             elif get_task_response.status_code == 204:
