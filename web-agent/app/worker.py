@@ -4,7 +4,8 @@
 from gevent import monkey;
 monkey.patch_all()
 import gevent
-import threading
+from gevent.lock import BoundedSemaphore
+from gevent.event import Event
 import argparse
 import atexit
 import base64
@@ -538,7 +539,7 @@ class RateLimiter:
         self.request_limit = request_limit
         self.time_window = time_window
         self.timestamps = deque()
-        self.lock = threading.Lock()
+        self.lock = BoundedSemaphore(1)
 
     def set_limits(self, request_limit: int, time_window: int):
         self.request_limit = request_limit
@@ -564,7 +565,7 @@ class RateLimiter:
 
 
 class BufferedMetricsLogger:
-    """Buffered metrics logger for DataDog. Flushes periodically to preserve timestamps. Uses threading primitives."""
+    """Buffered metrics logger for DataDog. Flushes periodically to preserve timestamps. Uses gevent primitives."""
 
     def __init__(self, metrics_file: str, flush_interval: int = 10, buffer_size: int = 1000, backup_count: int = 7):
         Path(metrics_file).parent.mkdir(parents=True, exist_ok=True)
@@ -572,9 +573,9 @@ class BufferedMetricsLogger:
         self.buffer_size = buffer_size
         self.backup_count = backup_count
         self.buffer: List[Dict] = []
-        self.buffer_lock = threading.Lock()
+        self.buffer_lock = BoundedSemaphore(1)
         self.last_flush_time = time.time()
-        self.shutdown_flag = threading.Event()
+        self.shutdown_flag = Event()
 
         self.file_logger = logging.getLogger('metrics_file')
         self.file_logger.setLevel(logging.INFO)
@@ -584,8 +585,7 @@ class BufferedMetricsLogger:
         handler.setFormatter(logging.Formatter('%(message)s'))
         self.file_logger.addHandler(handler)
 
-        self.flush_thread = threading.Thread(target=self._auto_flush_loop, daemon=True)
-        self.flush_thread.start()
+        self.flush_greenlet = gevent.spawn(self._auto_flush_loop)
 
     def write_metric(self, metric_name: str, value: float, tags: Dict[str, str] = None):
         timestamp_ms = int(time.time() * 1000)
@@ -595,37 +595,55 @@ class BufferedMetricsLogger:
             "value": value,
             "tags": tags or {}
         }
+
+        events_to_flush = []
         with self.buffer_lock:
             self.buffer.append(metric_event)
             if len(self.buffer) >= self.buffer_size:
-                self._flush()
+                events_to_flush = self.buffer[:]
+                self.buffer.clear()
+                self.last_flush_time = time.time()
 
-    def _flush(self):
-        if not self.buffer:
-            return
-        for event in self.buffer:
-            self.file_logger.info(json.dumps(event))
-        self.buffer.clear()
-        self.last_flush_time = time.time()
+        # Flush outside lock to prevent blocking
+        if events_to_flush:
+            for event in events_to_flush:
+                self.file_logger.info(json.dumps(event))
 
     def _auto_flush_loop(self):
         while not self.shutdown_flag.is_set():
-            time.sleep(self.flush_interval)
+            gevent.sleep(self.flush_interval)
+
+            events_to_flush = []
             with self.buffer_lock:
                 if self.buffer and (time.time() - self.last_flush_time) >= self.flush_interval:
-                    self._flush()
+                    events_to_flush = self.buffer[:]
+                    self.buffer.clear()
+                    self.last_flush_time = time.time()
+
+            # Flush outside lock to prevent blocking
+            if events_to_flush:
+                for event in events_to_flush:
+                    self.file_logger.info(json.dumps(event))
 
     def flush_now(self):
         """Flush all buffered metrics immediately."""
+        events_to_flush = []
         with self.buffer_lock:
-            self._flush()
+            events_to_flush = self.buffer[:]
+            self.buffer.clear()
+            self.last_flush_time = time.time()
+
+        # Flush outside lock to prevent blocking
+        if events_to_flush:
+            for event in events_to_flush:
+                self.file_logger.info(json.dumps(event))
 
     def shutdown(self):
-        """Flush remaining metrics and stop the flush thread."""
+        """Flush remaining metrics and stop the flush greenlet."""
         self.flush_now()
         self.shutdown_flag.set()
-        if self.flush_thread.is_alive():
-            self.flush_thread.join(timeout=5)
+        if self.flush_greenlet:
+            gevent.joinall([self.flush_greenlet], timeout=5)
 
 
 def _get_url_without_params(url: str) -> str:
@@ -918,7 +936,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     config['agent_id']  = generate_unique_id()
     config['server_url'] = args.serverUrl
     config['api_key'] = args.apiKey
-    agent_index: str = args.index
+    agent_index: str = args.index +  config['agent_id']
     timeout_cmd = args.timeout
     pool_size_cmd = args.poolSize
     verify_cmd = args.verify
