@@ -1568,6 +1568,7 @@ class WatchdogWorker:
 
         while not self._shutdown_event.is_set():
             try:
+                logger.debug("Watchdog: health check passed")
                 is_healthy, reasons = health_metrics.is_healthy()
 
                 if not is_healthy:
