@@ -1798,7 +1798,7 @@ def main() -> None:
     global config_dict, logger, rate_limiter, metrics_logger, health_metrics
 
     # Initialize rate limiter
-    rate_limiter = RateLimiter(request_limit=25, time_window=15)
+    rate_limiter = RateLimiter(request_limit=100, time_window=15)
 
     parser = argparse.ArgumentParser(description="Worker1: In-Process Watchdog Solution")
     config_dict, agent_index, debug_mode, enable_stdout_logging = get_initial_config(parser)
