@@ -708,7 +708,7 @@ def _get_headers() -> Dict[str, str]:
 
 
 # ============================================================================
-# TASK PROCESSING (from original worker.py)
+# TASK PROCESSING
 # ============================================================================
 
 def check_and_update_encode_url(headers, url: str):
@@ -1432,7 +1432,7 @@ class WatchdogWorker:
         The 1-second interval was too frequent for just checking restart/shutdown flags.
         5 seconds is a good balance between responsiveness and efficiency.
         """
-        heartbeat_interval: int = 5  # Check every 5 seconds instead of 1
+        heartbeat_interval: int = 60  # Check every 60 seconds
 
         while not self._shutdown_event.is_set():
             if self._restart_event.is_set():
