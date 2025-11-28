@@ -12,7 +12,7 @@ COPY /* /etc/armorcode/
 
 RUN chown -R appuser:appuser /etc/armorcode
 
-RUN sed -i 's/user=root/user=appuser/g' /etc/armorcode/supervisord.conf
+RUN sed -i 's/user\s*=\s*root/user=appuser/g' /etc/armorcode/supervisord.conf
 
 RUN touch /supervisord.log /supervisord.pid
 
