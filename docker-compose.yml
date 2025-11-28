@@ -3,5 +3,3 @@ services:
   armorcode-tunnel-1:
     build: .
     restart: always
-    volumes:
-      - .:/etc/armorcode

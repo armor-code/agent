@@ -2,13 +2,19 @@ FROM alpine:latest
 
 RUN apk update && \
     apk upgrade && \
-	apk add --no-cache autossh supervisor openssl && \
-	rm -rf /var/cache/apk/*
+        apk add --no-cache autossh supervisor openssl && \
+        rm -rf /var/cache/apk/* && \
+        adduser -D appuser
+
 RUN mkdir /etc/armorcode
 
-RUN adduser -D appuser
+COPY /* /etc/armorcode/
 
-RUN chown -R appuser /etc/armorcode
+RUN chown -R appuser:appuser /etc/armorcode
+
+RUN touch /supervisord.log /supervisord.pid
+
+RUN chown appuser:appuser /supervisord.log /supervisord.pid
 
 USER appuser
 
