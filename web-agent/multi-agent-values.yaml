@@ -69,11 +69,11 @@ ebs:
 
 resources:
   requests:
-    memory: "2048Mi"
-    cpu: "1000m"
+    memory: "1024Mi"
+    cpu: "500m"
   limits:
-    memory: "2048Mi"
-    cpu: "1000m"
+    memory: "1024Mi"
+    cpu: "500m"
 
 # Network policy configuration
 networkPolicy:
