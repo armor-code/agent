@@ -6,15 +6,22 @@ This Helm chart deploys the ArmorCode Web Agent on Kubernetes. The chart support
 2. **Multiple Deployments** - Multiple separate deployments, each with its own API key
 
 ## Prerequisites
-
+- AMD64 based architecture on the cluster we are deploying
 - Kubernetes 1.16+
 - Helm 3.0+
+- API keys from Armorcode-UI (Fetch N no of API keys of type `Web Agent` if We wants to create N agents)
+- Make Sure the API keys are of type Web-Agent 
+
+## Clone the repo
+git clone https://github.com/armor-code/agent.git
 
 ## Installation
 
 ### Single Deployment
 
 For a single deployment with one API key:
+
+
 
 ```bash
 # Create a values file (my-values.yaml)
@@ -33,10 +40,6 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 EOF
-
-## Clone the repo
-git clone https://github.com/armor-code/agent.git
-git checkout helm_charts
 
 # Install the chart
 helm install armorcode-web-agent ./helm-chart -f my-values.yaml
