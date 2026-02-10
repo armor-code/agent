@@ -103,7 +103,6 @@ spec:
           {{- end }}
       {{- with $root.Values.nodeSelector }}
       nodeSelector:
-        purpose: web-agent
       {{- end }}
       {{- with $root.Values.affinity }}
       affinity:
@@ -111,10 +110,6 @@ spec:
       {{- end }}
       {{- with $root.Values.tolerations }}
       tolerations:
-      - key: "purpose"
-        operator: "Equal"
-        value: "agent"
-        effect: "NoSchedule"
         {{- toYaml . | nindent 8 }}
       {{- end }}
 {{- end }}
