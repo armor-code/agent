@@ -1,7 +1,7 @@
 # Common configuration for all agents
 agentDefaults:
   # ArmorCode server URL - common for all agents
-  serverUrl: https://qa.armorcode.ai
+  serverUrl: https://web-agent.armorcode.com
 
   # Request timeout in seconds
   timeout: 30
@@ -29,15 +29,15 @@ multipleDeployments:
   instances:
     # First agent - Production environment
     - name: agent-1
-      apiKey: 0087e311-a3e5-4d09-a131-360f7f60fdd6
+      apiKey: 0087e311-a3e5-4d09-a131-sdfdsf
       
     # Second agent - Staging environment  
     - name: agent-2
-      apiKey: 79113fb0-24d9-42ed-b482-3a2084b76d26
+      apiKey: 79113fb0-24d9-42ed-b482-sdfsdf
       
     # Third agent - Development environment
-    - name: dev
-      apiKey: 364f5d3e-1fb7-4376-adf9-6b81d787820e
+    - name: agent-3
+      apiKey: 364f5d3e-1fb7-4376-adf9-dsfdsf
 
 # Use local built image
 image:
@@ -69,11 +69,11 @@ ebs:
 
 resources:
   requests:
-    memory: "2048Mi"
+    memory: "500Mi"
     cpu: "1000m"
   limits:
     memory: "2048Mi"
-    cpu: "1000m"
+    cpu: "2000m"
 
 # Network policy configuration
 networkPolicy:
