@@ -30,10 +30,12 @@ spec:
 
 {{/* Create PVCs for multiple deployments */}}
 {{- if and .Values.ebs.persistence.enabled .Values.multipleDeployments.enabled }}
-{{- range .Values.multipleDeployments.instances }}
-{{- $deploymentName := printf "%s-%s" (include "armorcode-web-agent.fullname" $) .name }}
-{{- $context := dict "root" $ "name" $deploymentName "instanceName" .name }}
-{{- include "armorcode-web-agent.persistentVolumeClaimTemplate" $context }}
+{{- range $idx, $instance := .Values.multipleDeployments.instances }}
+{{- if $idx }}
 ---
+{{- end }}
+{{- $deploymentName := printf "%s-%s" (include "armorcode-web-agent.fullname" $) $instance.name }}
+{{- $context := dict "root" $ "name" $deploymentName "instanceName" $instance.name }}
+{{- include "armorcode-web-agent.persistentVolumeClaimTemplate" $context }}
 {{- end }}
 {{- end }}
