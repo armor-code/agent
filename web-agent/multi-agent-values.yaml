@@ -60,6 +60,13 @@ ebs:
     allowVolumeExpansion: true
     volumeBindingMode: "Immediate"
 
+  # PVC Configuration
+  persistence:
+    enabled: true
+    storageClassName: "ebs-sc"
+    accessMode: ReadWriteOnce
+    size: 5Gi
+
 resources:
   requests:
     memory: "128Mi"
@@ -67,13 +74,6 @@ resources:
   limits:
     memory: "256Mi"
     cpu: "500m"
-
-  # PVC Configuration
-  persistence:
-    enabled: true
-    storageClassName: "ebs-sc"
-    accessMode: ReadWriteOnce
-    size: 5Gi
 
 # Network policy configuration
 networkPolicy:
