@@ -1,0 +1,14 @@
+{{- if .Values.ebs.enabled }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Values.ebs.storageClass.name }}
+provisioner: {{ .Values.ebs.storageClass.provisioner }}
+parameters:
+  {{- with .Values.ebs.storageClass.parameters }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+reclaimPolicy: {{ .Values.ebs.storageClass.reclaimPolicy }}
+allowVolumeExpansion: {{ .Values.ebs.storageClass.allowVolumeExpansion }}
+volumeBindingMode: {{ .Values.ebs.storageClass.volumeBindingMode }} 
+{{- end }}

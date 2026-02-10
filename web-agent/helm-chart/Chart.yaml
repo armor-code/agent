@@ -1,0 +1,16 @@
+apiVersion: v2
+name: armorcode-web-agent
+version: 0.1.0  # Increment as needed
+description: Helm chart for deploying ArmorCode Web Agent with support for multiple API keys
+type: application
+keywords:
+  - armorcode
+  - web-agent
+  - security
+home: https://github.com/armor-code/agent  # Your repo URL
+sources:
+  - https://github.com/armor-code/agent
+maintainers:
+  - name: Deepak Meena
+    email: deepakmeena@armorcode.io
+icon: https://raw.githubusercontent.com/armor-code/agent/main/docs/charts/icon.png  # If you have an icon
