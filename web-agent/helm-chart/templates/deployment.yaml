@@ -103,6 +103,7 @@ spec:
           {{- end }}
       {{- with $root.Values.nodeSelector }}
       nodeSelector:
+        beta.kubernetes.io/arch: amd64
       {{- end }}
       {{- with $root.Values.affinity }}
       affinity:
