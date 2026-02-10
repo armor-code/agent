@@ -122,20 +122,22 @@ spec:
 
 {{/* Deploy Multiple Deployments if enabled */}}
 {{- if .Values.multipleDeployments.enabled }}
-{{- range .Values.multipleDeployments.instances }}
-{{- $deploymentName := printf "%s-%s" (include "armorcode-web-agent.fullname" $) .name }}
-{{- $serverUrl := .serverUrl | default $.Values.agentDefaults.serverUrl }}
-{{- $debugMode := .debugMode | default $.Values.agentDefaults.debugMode }}
-{{- $envName := .envName | default $.Values.agentDefaults.envName }}
-{{- $index := .name }}
-{{- $timeout := .timeout | default $.Values.agentDefaults.timeout }}
-{{- $verify := .verify | default $.Values.agentDefaults.verify }}
-{{- $poolSize := .poolSize | default $.Values.agentDefaults.poolSize }}
-{{- $uploadToAc := .uploadToAc | default $.Values.agentDefaults.uploadToAc }}
-{{- $proxy := .proxy | default $.Values.agentDefaults.proxy }}
-
-{{- $context := dict "root" $ "name" $deploymentName "apiKey" .apiKey "serverUrl" $serverUrl "debugMode" $debugMode "envName" $envName "index" $index "timeout" $timeout "verify" $verify "poolSize" $poolSize "uploadToAc" $uploadToAc "proxy" $proxy "replicaCount" 1 "instanceName" .name "volumeClaimName" $deploymentName }}
-{{- include "armorcode-web-agent.deploymentTemplate" $context }}
+{{- range $idx, $instance := .Values.multipleDeployments.instances }}
+{{- if $idx }}
 ---
+{{- end }}
+{{- $deploymentName := printf "%s-%s" (include "armorcode-web-agent.fullname" $) $instance.name }}
+{{- $serverUrl := $instance.serverUrl | default $.Values.agentDefaults.serverUrl }}
+{{- $debugMode := $instance.debugMode | default $.Values.agentDefaults.debugMode }}
+{{- $envName := $instance.envName | default $.Values.agentDefaults.envName }}
+{{- $index := $instance.name }}
+{{- $timeout := $instance.timeout | default $.Values.agentDefaults.timeout }}
+{{- $verify := $instance.verify | default $.Values.agentDefaults.verify }}
+{{- $poolSize := $instance.poolSize | default $.Values.agentDefaults.poolSize }}
+{{- $uploadToAc := $instance.uploadToAc | default $.Values.agentDefaults.uploadToAc }}
+{{- $proxy := $instance.proxy | default $.Values.agentDefaults.proxy }}
+
+{{- $context := dict "root" $ "name" $deploymentName "apiKey" $instance.apiKey "serverUrl" $serverUrl "debugMode" $debugMode "envName" $envName "index" $index "timeout" $timeout "verify" $verify "poolSize" $poolSize "uploadToAc" $uploadToAc "proxy" $proxy "replicaCount" 1 "instanceName" $instance.name "volumeClaimName" $deploymentName }}
+{{- include "armorcode-web-agent.deploymentTemplate" $context }}
 {{- end }}
 {{- end }}
