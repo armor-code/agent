@@ -1,7 +1,7 @@
 # Common configuration for all agents
 agentDefaults:
   # ArmorCode server URL - common for all agents
-  serverUrl: https://web-agent.armorcode.ai
+  serverUrl: https://qa.armorcode.ai
 
   # Request timeout in seconds
   timeout: 30
@@ -28,16 +28,16 @@ multipleDeployments:
   # List of deployments with unique names and API keys
   instances:
     # First agent - Production environment
-    - name: prod
-      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
+    - name: agent-1
+      apiKey: 0087e311-a3e5-4d09-a131-360f7f60fdd6
       
     # Second agent - Staging environment  
-    - name: staging
-      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
+    - name: agent-2
+      apiKey: 79113fb0-24d9-42ed-b482-3a2084b76d26
       
     # Third agent - Development environment
     - name: dev
-      apiKey: bdjhwbjhdb-dddd-dddd-ssss-bdcjhdbcjhdb
+      apiKey: 364f5d3e-1fb7-4376-adf9-6b81d787820e
 
 # Use local built image
 image:
