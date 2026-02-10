@@ -34,6 +34,10 @@ image:
   pullPolicy: IfNotPresent
 EOF
 
+## Clone the repo
+git clone https://github.com/armor-code/agent.git
+git checkout helm_charts
+
 # Install the chart
 helm install armorcode-web-agent ./helm-chart -f my-values.yaml
 ```
