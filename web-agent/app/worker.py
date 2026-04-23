@@ -30,7 +30,7 @@ import requests
 from gevent.pool import Pool
 
 # Global variables
-__version__ = "1.1.10"
+__version__ = "1.1.11"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
