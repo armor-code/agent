@@ -3,6 +3,10 @@ on:
   pull_request:
     branches: [main]
     types: [closed]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   merge-main-back-to-qa:
     if: github.event.pull_request.merged == true && github.event.pull_request.head.ref != 'qa'
