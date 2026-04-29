@@ -1,0 +1,12 @@
+name: Lint Workflow Guards
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+
+jobs:
+  lint:
+    uses: armor-code/jenkins-library/.github/workflows/lint-workflow-guards.yml@release
+    secrets: inherit
+
