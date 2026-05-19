@@ -8,7 +8,6 @@ sequenceDiagram
     end
     box rgba(220, 220, 220, 0.5) Customer Network 2
         participant ReverseProxy as "git.armorcode.<customer-domain>.com<br/>(nginx reverse proxy)"
-        participant WebAgent as "web-agent"
     end
     box rgba(220, 220, 220, 0.5) ArmorCode Network
         participant ArmorCode as "app.armorcode.com"
@@ -16,8 +15,8 @@ sequenceDiagram
     
     User->>GitHub: App installation via UI
     GitHub->>ReverseProxy: webhook call
-    ReverseProxy->>WebAgent: webhook call
-    WebAgent->>ArmorCode: webhook call
+    ReverseProxy->>ArmorCode: webhook call
+
 
 ```
 
