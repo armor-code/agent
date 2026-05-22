@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM alpine:latest
+FROM alpine:3.22
 
 # Set the working directory in the container
 WORKDIR /usr/src
@@ -11,7 +11,7 @@ RUN apk update && \
     apk --update --no-cache upgrade openssl libssl3 libcrypto3 && \
     python3 -m venv /usr/src/venv && \
     /usr/src/venv/bin/pip install --upgrade pip && \
-    /usr/src/venv/bin/pip install --no-cache-dir requests gevent urllib3 && \
+    /usr/src/venv/bin/pip install --no-cache-dir requests gevent "urllib3>=2.7.0" "idna>=3.15" && \
     apk del py3-pip && \
     rm -rf /usr/src/venv/lib/python*/site-packages/pip* && \
     rm -rf /usr/src/venv/lib/python*/site-packages/setuptools* && \
