@@ -81,7 +81,7 @@ The **ArmorCode Web Agent** is available as a **Docker image** and can be deploy
 ## Steps to Set Up:
 1. **Generate an API Key**
    From the **ArmorCode** platform:
-- **API key type:** API
+- **API key type:** Web Agent
 - **Product:** All
 - **Role:** Admin [Only the Admin can create this API Key.]
 

@@ -80,10 +80,11 @@ def main() -> None:
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
-    logger.info("Agent Started for url %s, verify %s, timeout %s, connect_timeout %s, outgoing proxy %s, inward %s, uploadToAc %s",
+    logger.info("Agent Started for url %s, verify %s, timeout %s, connect_timeout %s, read_timeout_seconds %s, outgoing proxy %s, inward %s, uploadToAc %s",
                 config_dict.get('server_url'),
                 config_dict.get('verify_cert', False), config_dict.get('timeout', 10),
-                config_dict.get('connect_timeout', 15), config_dict['outgoing_proxy'],
+                config_dict.get('connect_timeout', 15), config_dict.get('read_timeout_seconds', 100),
+                config_dict['outgoing_proxy'],
                 config_dict['inward_proxy'], config_dict.get('upload_to_ac', None))
 
     if config_dict['server_url'] is None or config_dict.get('api_key', None) is None:
@@ -116,7 +117,7 @@ def process() -> None:
             get_task_response: requests.Response = requests.get(
                 get_task_server_url,
                 headers=headers,
-                timeout=25, verify=config_dict.get('verify_cert', False),
+                timeout=(25, config_dict.get('read_timeout_seconds', 100)), verify=config_dict.get('verify_cert', False),
                 proxies=config_dict['outgoing_proxy'],
                 params=params
             )
@@ -236,7 +237,7 @@ def update_task(task: Optional[Dict[str, Any]]) -> None:
             f"{config_dict.get('server_url')}/api/http-teleport/put-result",
             headers=_get_headers(),
             json=task,
-            timeout=30, verify=config_dict.get('verify_cert'), proxies=config_dict['outgoing_proxy']
+            timeout=(25, config_dict.get('read_timeout_seconds', 100)), verify=config_dict.get('verify_cert'), proxies=config_dict['outgoing_proxy']
         )
         update_duration_ms = (time.time() - update_start_time) * 1000
         _log_update_metrics(task, response, update_duration_ms)
@@ -379,10 +380,11 @@ def check_for_logs_fetch(url, task, temp_output_file_zip):
 
             def _do_upload_logs() -> requests.Response:
                 rate_limiter.throttle()
+                upload_read_timeout_seconds = max(300, config_dict.get('read_timeout_seconds', 100))
                 return requests.post(
                     upload_logs_url,
                     headers=headers,
-                    timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
+                    timeout=(25, upload_read_timeout_seconds), verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
                     files=files
                 )
 
@@ -582,10 +584,11 @@ def upload_response(temp_file, temp_file_zip, taskId: str, task: Dict[str, Any])
             upload_start_time = time.time()
 
             def _do_upload() -> requests.Response:
+                upload_read_timeout_seconds = max(300, config_dict.get('read_timeout_seconds', 100))
                 return requests.post(
                     f"{config_dict.get('server_url')}/api/http-teleport/upload-result",
                     headers=headers,
-                    timeout=300, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
+                    timeout=(25, upload_read_timeout_seconds), verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy'],
                     files=files
                 )
 
@@ -879,7 +882,7 @@ def get_s3_upload_url(taskId: str) -> Tuple[Optional[str], Optional[str]]:
             f"{config_dict.get('server_url')}/api/http-teleport/upload-url",
             params=params,
             headers=_get_headers(),
-            timeout=25, verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy']
+            timeout=(25, config_dict.get('read_timeout_seconds', 100)), verify=config_dict.get('verify_cert', False), proxies=config_dict['outgoing_proxy']
         )
 
     try:
@@ -1027,6 +1030,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     parser.add_argument("--connectTimeout", required=False, type=int, help="TCP connect timeout in seconds for tool calls (default: 15)", default=15)
     parser.add_argument("--metricsRetentionDays", required=False, type=int, help="Metrics log retention in days", default=7)
     parser.add_argument("--isDocker", nargs='?', type=str2bool, const=True, default=False, help="Flag indicating agent is running inside Docker")
+    parser.add_argument("--readTimeoutSeconds", required=False, type=int, help="Read timeout in seconds for ArmorCode server calls (default: 100)", default=100)
 
     parser.add_argument(
         "--uploadToAc",
@@ -1059,6 +1063,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     debug_cmd = args.debugMode
     rate_limit_per_min = args.rateLimitPerMin
     config['metrics_retention_days'] = args.metricsRetentionDays
+    config['read_timeout_seconds'] = args.readTimeoutSeconds
 
     config['upload_to_ac'] = args.uploadToAc
     enable_stdout_logging_cmd = args.enableStdoutLogging
