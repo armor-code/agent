@@ -30,7 +30,7 @@ import requests
 from gevent.pool import Pool
 
 # Global variables
-__version__ = "1.1.11"
+__version__ = "1.1.12"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
@@ -40,7 +40,7 @@ armorcode_folder: str = os.path.join(tempfile.gettempdir(), ac_str)
 log_folder: str = os.path.join(armorcode_folder, 'log')
 output_file_folder: str = os.path.join(armorcode_folder, 'output_files')
 
-max_file_size: int = 1024 * 500  # max_size data that would be sent in payload, more than that will send via s3
+max_file_size: int = 1024 * 1  # max_size data that would be sent in payload, more than that will send via s3
 logger: Optional[logging.Logger] = None
 
 max_retry: int = 3
@@ -80,9 +80,10 @@ def main() -> None:
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
-    logger.info("Agent Started for url %s, verify %s, timeout %s, outgoing proxy %s, inward %s, uploadToAc %s",
+    logger.info("Agent Started for url %s, verify %s, timeout %s, connect_timeout %s, outgoing proxy %s, inward %s, uploadToAc %s",
                 config_dict.get('server_url'),
-                config_dict.get('verify_cert', False), config_dict.get('timeout', 10), config_dict['outgoing_proxy'],
+                config_dict.get('verify_cert', False), config_dict.get('timeout', 10),
+                config_dict.get('connect_timeout', 15), config_dict['outgoing_proxy'],
                 config_dict['inward_proxy'], config_dict.get('upload_to_ac', None))
 
     if config_dict['server_url'] is None or config_dict.get('api_key', None) is None:
@@ -453,7 +454,7 @@ def process_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
         http_start_time = time.time()
         response: requests.Response = requests.request(method, url, headers=headers, data=encoded_input_data, stream=True,
-                                                       timeout=(15, timeout), verify=config_dict.get('verify_cert'),
+                                                       timeout=(config_dict.get('connect_timeout', 15), timeout), verify=config_dict.get('verify_cert'),
                                                        proxies=config_dict['inward_proxy'])
         http_duration_ms = (time.time() - http_start_time) * 1000
         logger.info("Response: %d", response.status_code)
@@ -1005,7 +1006,8 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         "outgoing_proxy": None,  # Proxy for outgoing requests (e.g., to ArmorCode)
         "upload_to_ac": False,  # Whether to upload to ArmorCode
         "env_name": None,  # Environment name (Optional[str])
-        "thread_pool_size": 5  # Connection thread_pool size
+        "thread_pool_size": 5,  # Connection thread_pool size
+        "connect_timeout": 15  # TCP connect timeout (seconds) for tool calls
     }
     parser.add_argument("--serverUrl", required=False, help="Server Url")
     parser.add_argument("--apiKey", required=False, help="Api Key")
@@ -1022,7 +1024,9 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
     parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=5)
     parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=250)
+    parser.add_argument("--connectTimeout", required=False, type=int, help="TCP connect timeout in seconds for tool calls (default: 15)", default=15)
     parser.add_argument("--metricsRetentionDays", required=False, type=int, help="Metrics log retention in days", default=7)
+    parser.add_argument("--isDocker", nargs='?', type=str2bool, const=True, default=False, help="Flag indicating agent is running inside Docker")
 
     parser.add_argument(
         "--uploadToAc",
@@ -1044,6 +1048,8 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
 
     args = parser.parse_args()
     config['agent_id']  = generate_unique_id()
+    if args.isDocker:
+        config['agent_id'] += '::isDocker'
     config['server_url'] = args.serverUrl
     config['api_key'] = args.apiKey
     agent_index: str = args.index
@@ -1101,6 +1107,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         config['timeout'] = int(timeout_cmd)
     if pool_size_cmd is not None:
         config['thread_pool_size'] = int(pool_size_cmd)
+    config['connect_timeout'] = args.connectTimeout
     if os.getenv('verify') is not None:
         if str(os.getenv('verify')).lower() == "true":
             config['verify_cert'] = True
