@@ -1029,7 +1029,6 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=250)
     parser.add_argument("--connectTimeout", required=False, type=int, help="TCP connect timeout in seconds for tool calls (default: 15)", default=15)
     parser.add_argument("--metricsRetentionDays", required=False, type=int, help="Metrics log retention in days", default=7)
-    parser.add_argument("--isDocker", nargs='?', type=str2bool, const=True, default=False, help="Flag indicating agent is running inside Docker")
     parser.add_argument("--readTimeoutSeconds", required=False, type=int, help="Read timeout in seconds for ArmorCode server calls (default: 100)", default=100)
 
     parser.add_argument(
@@ -1051,9 +1050,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     )
 
     args = parser.parse_args()
-    config['agent_id']  = generate_unique_id()
-    if args.isDocker:
-        config['agent_id'] += '::isDocker'
+    config['agent_id'] = generate_unique_id()
     config['server_url'] = args.serverUrl
     config['api_key'] = args.apiKey
     agent_index: str = args.index
