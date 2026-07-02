@@ -60,7 +60,7 @@ def _make_ipv4_fallback(delegate):
     return _wrapper
 
 # Global variables
-__version__ = "1.1.12"
+__version__ = "1.1.13"
 letters: str = string.ascii_letters
 rand_string: str = ''.join(secrets.choice(letters) for _ in range(10))
 
