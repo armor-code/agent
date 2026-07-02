@@ -3,6 +3,11 @@
 
 from gevent import monkey;
 monkey.patch_all()
+
+import socket as _socket
+import gevent.socket as _gevent_socket
+import time as _time
+
 import gevent
 import threading
 import argparse
@@ -28,6 +33,31 @@ from urllib.parse import urlparse, urlunparse
 import random
 import requests
 from gevent.pool import Pool
+
+_IPV4_CACHE_TTL_SECONDS: int = 3600  # 1 hour
+_ipv4_only_hosts: dict = {}  # host -> expiry_timestamp
+_dns_retryable_errors: frozenset = frozenset(
+    {_socket.EAI_AGAIN, getattr(_socket, "EAI_FAIL", None)} - {None}
+)
+
+def _make_ipv4_fallback(delegate):
+    def _wrapper(host, port, family=0, type=0, proto=0, flags=0):
+        if family in (0, _socket.AF_UNSPEC):
+            expiry = _ipv4_only_hosts.get(host)
+            if expiry is not None:
+                if _time.monotonic() < expiry:
+                    return delegate(host, port, _socket.AF_INET, type, proto, flags)
+                else:
+                    del _ipv4_only_hosts[host]
+        try:
+            return delegate(host, port, family, type, proto, flags)
+        except _socket.gaierror as exc:
+            if family in (0, _socket.AF_UNSPEC) and exc.errno in _dns_retryable_errors:
+                result = delegate(host, port, _socket.AF_INET, type, proto, flags)
+                _ipv4_only_hosts[host] = _time.monotonic() + _IPV4_CACHE_TTL_SECONDS
+                return result
+            raise
+    return _wrapper
 
 # Global variables
 __version__ = "1.1.12"
@@ -60,6 +90,10 @@ def main() -> None:
     rate_limiter = RateLimiter(request_limit=25, time_window=15)
     parser = argparse.ArgumentParser()
     config_dict, agent_index, debug_mode, enable_stdout_logging = get_initial_config(parser)
+
+    if config_dict.get('ipv4_fallback', False):
+        _socket.getaddrinfo = _make_ipv4_fallback(_socket.getaddrinfo)
+        _gevent_socket.getaddrinfo = _make_ipv4_fallback(_gevent_socket.getaddrinfo)
 
     logger = setup_logger(agent_index, debug_mode, enable_stdout_logging)
 
@@ -1049,6 +1083,13 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         help="Enable logging to stdout/console in addition to file (default: False)"
     )
 
+    parser.add_argument(
+        "--ipv4Fallback",
+        action="store_true",
+        default=False,
+        help="Fall back to IPv4-only DNS resolution when AAAA queries return SERVFAIL (default: False)"
+    )
+
     args = parser.parse_args()
     config['agent_id'] = generate_unique_id()
     config['server_url'] = args.serverUrl
@@ -1063,6 +1104,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
     config['read_timeout_seconds'] = args.readTimeoutSeconds
 
     config['upload_to_ac'] = args.uploadToAc
+    config['ipv4_fallback'] = args.ipv4Fallback
     enable_stdout_logging_cmd = args.enableStdoutLogging
 
     rate_limiter.set_limits(rate_limit_per_min, 60)
