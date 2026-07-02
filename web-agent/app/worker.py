@@ -6,7 +6,6 @@ monkey.patch_all()
 
 import socket as _socket
 import gevent.socket as _gevent_socket
-import time as _time
 
 import gevent
 import threading
@@ -45,7 +44,7 @@ def _make_ipv4_fallback(delegate):
         if family in (0, _socket.AF_UNSPEC):
             expiry = _ipv4_only_hosts.get(host)
             if expiry is not None:
-                if _time.monotonic() < expiry:
+                if time.monotonic() < expiry:
                     return delegate(host, port, _socket.AF_INET, type, proto, flags)
                 else:
                     del _ipv4_only_hosts[host]
@@ -54,7 +53,7 @@ def _make_ipv4_fallback(delegate):
         except _socket.gaierror as exc:
             if family in (0, _socket.AF_UNSPEC) and exc.errno in _dns_retryable_errors:
                 result = delegate(host, port, _socket.AF_INET, type, proto, flags)
-                _ipv4_only_hosts[host] = _time.monotonic() + _IPV4_CACHE_TTL_SECONDS
+                _ipv4_only_hosts[host] = time.monotonic() + _IPV4_CACHE_TTL_SECONDS
                 return result
             raise
     return _wrapper
