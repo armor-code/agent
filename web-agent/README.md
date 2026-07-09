@@ -157,3 +157,9 @@ To check logs, run:
 ```commandline
   cd /tmp/armorcode/log ; tail -F *
 ```
+
+---
+
+## Advanced Configuration
+
+For a full reference of all available flags (rate limiting, timeouts, thread pool size, metrics retention, IPv4 fallback, and more), see [ADVANCED_CONFIG.md](ADVANCED_CONFIG.md).
