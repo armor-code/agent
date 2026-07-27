@@ -72,6 +72,7 @@ sequenceDiagram
 1. **Docker**
 2. **Python Script**
 3. **Systemd Service** (see [SUPERVISORD_SETUP.md](SUPERVISORD_SETUP.md))
+4. **Multiple Agents via a Single Systemd Service** (see [MULTI_AGENT_SYSTEMD_SETUP.md](MULTI_AGENT_SYSTEMD_SETUP.md))
 
 **Note** : Please whitelist  https://web-agent.armorcode.com and check connectivity to the endpoint via ``ping web-agent.armorcode.com``
 
