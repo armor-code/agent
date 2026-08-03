@@ -178,7 +178,7 @@ def process() -> None:
                         thread_pool.wait_available()  # Wait if the thread_pool is full
                     except Exception as e:
                         logger.error("Error while getting new thread status of thread pool ", e, exc_info=True)
-                        config_dict['thread_pool'] = Pool(config_dict.get('thread_pool_size', 5))
+                        config_dict['thread_pool'] = Pool(config_dict.get('thread_pool_size', 10))
                         thread_pool = config_dict['thread_pool']
 
                     thread_pool.spawn(process_task_async, task)  # Submit the task when free
@@ -1009,7 +1009,7 @@ def update_agent_config(global_config: dict[str, Any]) -> None:
     if global_config.get("verifyCert", False):
         config_dict['verify_cert'] = global_config.get("verifyCert", False)
     if global_config.get("threadPoolSize", 5):
-        config_dict['thread_pool_size'] = global_config.get("poolSize", 5)
+        config_dict['thread_pool_size'] = global_config.get("poolSize", 10)
         config_dict['thread_pool'] = Pool(config_dict['thread_pool_size'])
     if global_config.get("uploadToAC") is not None:
         config_dict['upload_to_ac'] = global_config.get("uploadToAC", True)
@@ -1042,7 +1042,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         "outgoing_proxy": None,  # Proxy for outgoing requests (e.g., to ArmorCode)
         "upload_to_ac": False,  # Whether to upload to ArmorCode
         "env_name": None,  # Environment name (Optional[str])
-        "thread_pool_size": 5,  # Connection thread_pool size
+        "thread_pool_size": 10,  # Connection thread_pool size
         "connect_timeout": 15  # TCP connect timeout (seconds) for tool calls
     }
     parser.add_argument("--serverUrl", required=False, help="Server Url")
@@ -1058,7 +1058,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
 
     parser.add_argument("--outgoingProxyHttps", required=False, help="Pass outgoing Https proxy", default=None)
     parser.add_argument("--outgoingProxyHttp", required=False, help="Pass outgoing Http proxy", default=None)
-    parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=5)
+    parser.add_argument("--poolSize", required=False, help="Multi threading thread_pool size", default=10)
     parser.add_argument("--rateLimitPerMin", required=False, help="Rate limit per min", default=250)
     parser.add_argument("--connectTimeout", required=False, type=int, help="TCP connect timeout in seconds for tool calls (default: 15)", default=15)
     parser.add_argument("--metricsRetentionDays", required=False, type=int, help="Metrics log retention in days", default=7)
@@ -1166,7 +1166,7 @@ def get_initial_config(parser) -> tuple[dict[str, Union[Union[bool, None, str, i
         config['server_url'] = os.getenv('server_url')
     if config.get('api_key', None) is None:
         config['api_key'] = os.getenv("api_key")
-    config['thread_pool'] = Pool(config.get('thread_pool_size', 5))
+    config['thread_pool'] = Pool(config.get('thread_pool_size', 10))
     return config, agent_index, debug_mode, enable_stdout_logging
 
 
