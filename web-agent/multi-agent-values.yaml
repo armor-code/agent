@@ -1,6 +1,8 @@
 # Common configuration for all agents
 agentDefaults:
   # ArmorCode server URL - common for all agents
+  # Default is the ArmorCode SaaS endpoint. Use the serverUrl provided by
+  # ArmorCode for your environment if it differs from the default.
   serverUrl: https://web-agent.armorcode.com
 
   # Request timeout in seconds

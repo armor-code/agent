@@ -32,7 +32,7 @@ singleDeployment:
   apiKey: your-api-key
 
 agentDefaults:
-  serverUrl: https://app.armorcode.com
+  serverUrl: https://web-agent.armorcode.com
   
 # The image will be pulled from the registry
 image:
@@ -83,7 +83,7 @@ You can modify these values to use your preferred container registry or image ve
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `agentDefaults.serverUrl` | ArmorCode server URL | `https://app.armorcode.com` |
+| `agentDefaults.serverUrl` | ArmorCode server URL (use the URL provided by ArmorCode) | `https://web-agent.armorcode.com` |
 | `agentDefaults.debugMode` | Enable debug mode | `false` |
 | `agentDefaults.envName` | Environment name | `""` |
 | `agentDefaults.index` | Agent index | `_prod` |
