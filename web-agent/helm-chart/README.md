@@ -89,7 +89,7 @@ You can modify these values to use your preferred container registry or image ve
 | `agentDefaults.index` | Agent index | `_prod` |
 | `agentDefaults.timeout` | Request timeout (seconds) | `30` |
 | `agentDefaults.verify` | Verify SSL certificates | `false` |
-| `agentDefaults.poolSize` | Thread pool size | `5` |
+| `agentDefaults.poolSize` | Thread pool size | `10` |
 | `agentDefaults.uploadToAc` | Upload to ArmorCode | `true` |
 
 
